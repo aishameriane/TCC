@@ -94,10 +94,16 @@ O que vai ser feito:
 * Então, utilizando um gerador de números aleatórios, serão amostrados $1000$ valores de cada densidade a posteriori;
 * Para cada conjunto de dados, será feito o triplot, que é o gráfico da verossimilhança, priori e posteriori juntas e calculado os intervalos de credibilidade HPDI.
 
+
+Coisas a implementar:
+
+- Ver a questão do s02 e da variância
+- Colocar erro de medida
+
 ## Instala e carrega os pacotes usados
 
 ```{r, warning = FALSE, message = FALSE}
-list.of.packages <- c("ggplot2", "metRology", "reshape2", "gridExtra","knitr", "stargazer")
+list.of.packages <- c("ggplot2", "metRology", "reshape2", "gridExtra","knitr", "stargazer", "latex2exp")
 new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
 library(ggplot2, quietly = T)
@@ -106,18 +112,20 @@ library(reshape2, quietly = T)
 library(gridExtra, quietly = T)
 library(knitr, quietly = T)
 library(stargazer, quietly = T)
+library(latex2exp, quietly = T)
 options(scipen=999)
 ```
 
 ## Gerando dados
 
 ```{r}
-gera_dados <- function(n, x1min, x1max, x2min = NULL, x2max = NULL, x3min = NULL, x3max = NULL, x4min = NULL, x4max = NULL, x5min = NULL, x5max = NULL, beta_real, intercepto = TRUE) {
+gera_dados <- function(n, nsim, x1min, x1max, x2min = NULL, x2max = NULL, x3min = NULL, x3max = NULL, x4min = NULL, x4max = NULL, x5min = NULL, x5max = NULL, beta_real, intercepto = TRUE) {
   
   N         <- n
   minX1     <- x1min
   maxX1     <- x1max
   Beta_real <- beta_real
+  nsim      <- nsim
 
   X1 <- round(runif(N, min = minX1, max = maxX1),2)
   X  <- X1
@@ -153,10 +161,29 @@ gera_dados <- function(n, x1min, x1max, x2min = NULL, x2max = NULL, x3min = NULL
     stop("A dimensão de beta deve ser a mesma do vetor X acrescido do intercepto")
   }
   
-  # Monta o vetor Y
-  Y_real <- as.matrix(X) %*% as.matrix(Beta_real, nrow = length(Beta_real))
+  # Calcula os pesos
+  # O peso é a média do X vezes o beta dividido pelo desvio padrão
+  # No caso de haver intercepto, o peso é apenas o Beta_real[1]
   
-  return(list(Y_real = Y_real, Beta_real = Beta_real, X = X))
+  # pesos pequenos
+   # if (intercepto == TRUE) {
+   #   peso <- colMeans(X) * Beta_real * c(1,1/apply(X[,2:ncol(X)], 2, sd))
+   # } else {
+   #   peso <- colMeans(X) * Beta_real * 1/apply(X, 2, sd)
+   # }
+
+  # pesos grandes
+   peso <- colMeans(X) * Beta_real * 0.1
+
+  erro   <- list()
+  Y_real <- list()
+  
+  for (i in 1:nsim) {
+    erro[[i]] <- sum(peso) * rnorm(N, mean = 0, sd = 1)
+    Y_real[[i]] <- as.matrix(X) %*% as.matrix(Beta_real, nrow = length(Beta_real)) + erro[[i]]
+  }
+  
+  return(list(Y_real = Y_real, Beta_real = Beta_real, X = X, peso = peso, erro = erro))
 }
 ```
 
@@ -165,36 +192,121 @@ gera_dados <- function(n, x1min, x1max, x2min = NULL, x2max = NULL, x3min = NULL
 Antes de estabelecer a priori, vou gerar um único conjunto de dados que vai servir para as simulações deste bloco.
 
 ```{r}
-dados <- gera_dados(n = 100, x1min = 0, x1max = 10, x2min = 500, x2max = 1000, x3min =3500, x3max = 5000, x4min = 50000, x4max = 600000, beta_real = c(2, 100, 0.6, 5, 0.01), intercepto = TRUE)
+####################################################################################
+# 1o experimento       
+# N (tamanho da amostra) = (30, 100, 500, 1000, 5000)
+####################################################################################
+
+# nsim = 10000
+# dados <- gera_dados(n = 30, nsim = nsim, x1min = 0, x1max = 10, x2min = 500, x2max = 1000, x3min =3500, x3max = 5000, x4min = 50000,             x4max = 600000, beta_real = c(2, 100, 0.6, 5, 0.01), intercepto = TRUE)
+
+####################################################################################
+# 2o experimento
+#N (tamanho da amostra) = (30, 100, 500, 1000, 5000)
+####################################################################################
+
+ nsim = 10000
+ dados <- gera_dados(n = 5000, nsim = nsim, x1min = 0, x1max = 10, x2min = 0, x2max = 10, x3min =0, x3max = 10, beta_real = c(1, 10, 50, 100), intercepto = TRUE)
+
+####################################################################################
+# 3o experimento
+#N (tamanho da amostra) = (30, 100, 500, 1000, 5000)
+####################################################################################
+
+ # nsim = 10000
+ # dados <- gera_dados(n = 5000, nsim = nsim, x1min = 0, x1max = 10, x2min = 0, x2max = 10, x3min =0, x3max = 10, beta_real = c(10, 50,               100), intercepto = FALSE)
+
+####################################################################################
+# 4o experimento
+#N (tamanho da amostra) = (30, 100, 500, 1000, 5000)
+####################################################################################
+
+ #nsim = 10000
+ #dados <- gera_dados(n = 5000, nsim = nsim, x1min = 0, x1max = 10, x2min = 0, x2max = 10, x3min =0, x3max = 10, beta_real = c(0.1,  0.1, 100, 100), intercepto = TRUE)
+
+####################################################################################
+# 5 experimento
+#N (tamanho da amostra) = (30, 100, 500, 1000, 5000)
+####################################################################################
+
+ # nsim = 10000
+ # dados <- gera_dados(n = 5000, nsim = nsim, x1min = 0, x1max = 10, x2min = 0, x2max = 10, x3min =0, x3max = 10, x4min =0, x4max = 10, beta_real = c(0.1, 0.1, 100, 100), intercepto = FALSE)
+
+#######################################################################################################################################
+# 6 experimento - erro de medida
+# Para o erro de medida, geramos os dados normalmente, porém precisamos de uma nova matriz de X para fazer as estimativas.
+#######################################################################################################################################
+
+#  nsim = 10000
+# # 
+# ## Passo 1 - obter os valores de Y corretos
+#  dados <- gera_dados(n = 5000, nsim = nsim, x1min = 0, x1max = 10, x2min = 0, x2max = 10, x3min =0, x3max = 10, x4min =0, x4max = 10,             beta_real = c(0.1, 0.1, 100, 100), intercepto = FALSE) 
+# 
+# ## Passo 2 - Criar dois vetores em X que tenham erro de medida
+# ## Primeiro vou olhar como está a estrutura da matriz X
+# # head(dados$X)
+# # 
+# # ## Vou criar dois termos de erros independentes, com mesmo tamanho de X
+# # ## Primeiro vou fazer uns erros pequeninhos
+#  erro1 <- rnorm(nrow(dados$X), mean = 0, sd = 1)
+#  erro2 <- rnorm(nrow(dados$X), mean = 0, sd = 1)
+# # summary(erro1)
+# # summary(erro2)
+#  Xem <- cbind(dados$X[,1], dados$X[,2]+erro1, dados$X[,3], dados$X[,4] + erro2)
+# # summary(dados$X)
+# # summary(Xem)
+# # 
+# # ## Agora crio uma nova matriz de dados onde o X vai ser o xerrado
+#  dados_em <- dados
+#  dados_em$X <- Xem
 ```
 
-### Priori própria bastante informativa
+### Priori com valores iguais aos verdadeiros e baixo desvio padrão
 
 ```{r}
-# Seta uma priori informativa
 # Supondo que os betas tem distribuição Gama com médias próximas aos valores reais e desvio padrão igual a 10% das médias 
-b0_in   <-  c(2, 100, 0.6, 5, 0.01) # Priori Informativa
+# 1o EXPERIMENTO
+# b0_in   <-  c(2, 100, 0.6, 5, 0.01) 
 
-s02_in   <- 1       # Desvio padrão dos erros a priori
-nu0_in   <- 5       # Graus de liberdade a priori
+# 2o experimento
+ b0_in   <-  c(1, 10, 50, 100) 
+
+# 3o experimento
+# b0_in   <-  c(10, 50, 100)
+
+# # 4o, 5o experimentos e erro de medida
+# b0_in   <-  c(0.1, 0.1, 100, 100) 
+
+s02_in   <- 0.2*mean(sapply(dados$Y_real, mean))       # Desvio padrão dos erros a priori - decidi usar 20% da média dos valores de y - antes era 5000
+#s02_in   <- 5000 # para o erro de medida
+nu0_in   <- 5          # Graus de liberdade a priori
 h0_in    <- 1/s02_in   # Priori para h
 stdh0_in <- 2/(s02_in*nu0_in)
 
 # Para encontrar os elementos da matriz V, utilizamos a fórmula do texto
 cons_in    <- (nu0_in * s02_in)/(nu0_in-2)
 varbeta_in <- b0_in * 0.1
-V0_in      <- diag(5)*(varbeta_in/cons_in) # Matriz de escala da priori
+V0_in      <- diag(length(b0_in))*(varbeta_in/cons_in) # Matriz de escala da priori
 ```
 
-### Priori própria pouco informativa (difusa)
-
+### Priori próxima dos valores verdadeiros e alto desvio padrão
 
 ```{r}
-# Seta uma priori informativa
-# Supondo que os betas tem distribuição Gama com médias próximas aos valores reais e desvio padrão igual a 2000x as médias 
-b0_ind   <-  c(2, 100, 0.6, 5, 0.01) # Priori Informativa
+# Supondo que os betas tem distribuição Gama com médias próximas aos valores reais e desvio padrão igual a 200x as médias
+# 1o experimento
+# b0_ind   <-  c(2, 100, 0.6, 5, 0.01) 
 
-s02_ind   <- 1       # Desvio padrão dos erros a priori
+# 2o experimento
+ b0_ind   <-  c(1, 10, 50, 100) 
+
+# 3o experimento
+# b0_ind   <-  c(10, 50, 100) 
+
+# # 4o, 5o experimentos e erro de medida
+# b0_ind   <-  c(0.1, 0.1, 100, 100) 
+
+s02_ind   <- 0.2*mean(sapply(dados$Y_real, mean))       # Desvio padrão dos erros a priori
+#s02_ind   <- 5000 #erro de medida
 nu0_ind   <- 5       # Graus de liberdade a priori
 h0_ind    <- 1/s02_ind   # Priori para h
 stdh0_ind <- 2/(s02_ind*nu0_ind)
@@ -202,17 +314,27 @@ stdh0_ind <- 2/(s02_ind*nu0_ind)
 # Para encontrar os elementos da matriz V, utilizamos a fórmula do texto
 cons_ind    <- (nu0_ind * s02_ind)/(nu0_ind-2)
 varbeta_ind <- b0_ind * 40000
-V0_ind      <- diag(5)*(varbeta_ind/cons_ind) # Matriz de escala da priori
+V0_ind      <- diag(length(b0_ind))*(varbeta_ind/cons_ind) # Matriz de escala da priori
 ```
 
 ### Priori própria com valores bem distantes dos reais e baixo desvio padrão
 
 ```{r}
-# Seta uma priori informativa
-# Supondo que os betas tem distribuição Gama com médias próximas aos valores reais e desvio padrão igual a 10% das médias 
-b0_ni   <-  c(5.1, 2.7, 15, 98.5, 37.7) # Priori Não-Informativa
+# Supondo que os betas tem distribuição Gama com médias diferentes aos valores reais e desvio padrão igual a 10% das médias 
+# 1o experimento
+# b0_ni   <-  c(5.1, 2.7, 15, 98.5, 37.7) 
 
-s02_ni   <- 1       # Desvio padrão dos erros a priori
+# 2o experimento - gerei dados de uniformes (0,1), (0,10), (0,100), (0,1000)
+ b0_ni   <-  c(0.27, 6.22, 73.10, 720.29) # Priori Não-Informativa
+
+# 3o experimento - gerei dados de uniformes (0,95), (0,25), (0,72)
+# b0_ni   <-  c(48.17, 0.57, 61.09) # Priori Não-Informativa
+
+# # 4o, 5o experimentos e erro de medida - gerei dados de uniformes (0,1), (0,1), (0,1000), (0,1000)
+# b0_ni   <-  c(0.038, 0.9946, 115.02, 169.20) 
+
+s02_ni   <- 0.2*mean(sapply(dados$Y_real, mean))       # Desvio padrão dos erros a priori
+#s02_ni   <- 5000 #erro de medida
 nu0_ni   <- 5       # Graus de liberdade a priori
 h0_ni    <- 1/s02_ni   # Priori para h
 stdh0_ni <- 2/(s02_ni*nu0_ni)
@@ -220,17 +342,27 @@ stdh0_ni <- 2/(s02_ni*nu0_ni)
 # Para encontrar os elementos da matriz V, utilizamos a fórmula do texto
 cons_ni    <- (nu0_ni * s02_ni)/(nu0_ni-2)
 varbeta_ni <- b0_ni * 0.1
-V0_ni      <- diag(5)*(varbeta_ni/cons_ni) # Matriz de escala da priori
+V0_ni      <- diag(length(b0_ni))*(varbeta_ni/cons_ni) # Matriz de escala da priori
 ```
 
 ### Priori própria com valores bem distantes dos reais e alto desvio padrão
 
 ```{r}
-# Seta uma priori informativa
-# Supondo que os betas tem distribuição Gama com médias próximas aos valores reais e desvio padrão igual a 20% das médias 
-b0_nid   <-  c(5.1, 2.7, 15, 98.5, 37.7) # Priori Não-Informativa
+# Supondo que os betas tem distribuição Gama com médias bem diferentes aos valores reais e desvio padrão igual a 200 vezes as médias
+# 1o experimento
+# b0_nid   <-  c(5.1, 2.7, 15, 98.5, 37.7) 
 
-s02_nid   <- 1       # Desvio padrão dos erros a priori
+# 2o experimento - gerei dados de uniformes (0,1), (0,10), (0,100), (0,1000)
+ b0_nid   <-  c(0.27, 6.22, 73.10, 720.29) # Priori Não-Informativa
+
+# 3o experimento - gerei dados de uniformes (0,95), (0,25), (0,72)
+# b0_nid   <-  c(48.17, 0.57, 61.09) # Priori Não-Informativa
+
+# 4o, 5o experimentos e erro de medida - gerei dados de uniformes (0,1), (0,1), (0,1000), (0,1000)
+# b0_nid   <-  c(0.038, 0.9946, 115.02, 169.20) # Priori não Informativa
+
+s02_nid   <- 0.2*mean(sapply(dados$Y_real, mean))       # Desvio padrão dos erros a priori
+#s02_nid   <- 5000 #erro de medida
 nu0_nid   <- 5       # Graus de liberdade a priori
 h0_nid    <- 1/s02_nid   # Priori para h
 stdh0_nid <- 2/(s02_nid*nu0_nid)
@@ -238,7 +370,7 @@ stdh0_nid <- 2/(s02_nid*nu0_nid)
 # Para encontrar os elementos da matriz V, utilizamos a fórmula do texto
 cons_nid    <- (nu0_nid * s02_nid)/(nu0_nid-2)
 varbeta_nid <- b0_nid * 40000
-V0_nid      <- diag(5)*(varbeta_nid/cons_nid) # Matriz de escala da priori
+V0_nid      <- diag(length(b0_nid))*(varbeta_nid/cons_nid) # Matriz de escala da priori
 ```
 
 # Posteriori
@@ -250,7 +382,7 @@ conjugada_natural <- function(Y, X, nu0, s20, B0, V0, varargin = NULL) {
   N      <- nrow(X)    # Tamanho da amostra a partir da matriz X
   k      <- ncol(X)    # Número de regressores
   nu     <- N-k        # Graus de liberdade
-  XX     <- t(matrix(X, ncol = 5)) %*% matrix(X, ncol=5)  
+  XX     <- t(matrix(X, ncol = k)) %*% matrix(X, ncol=k)  
   iXX    <- solve(XX)
   BMQO   <- iXX %*% (t(X) %*% Y)                           # Beta de MQO
   s2     <- (t(Y-X %*% BMQO) %*% (Y-X %*% BMQO))/nu       # Estimativa não viesada da var dos erros
@@ -319,7 +451,7 @@ conjugada_natural <- function(Y, X, nu0, s20, B0, V0, varargin = NULL) {
   if (is.null(varargin) == FALSE) {
     Xestrela   <- varargin
     Yestrela   <- Xestrela %*% B1                          # Previsão Y*
-    VYestrela  <- (1+t(Xestrela) %*% V1 %*% Xestrela)*as.numeric(s21)  # Matriz de escala da previsão
+    VYestrela  <-  (diag(nrow(Xestrela))+Xestrela %*% V1 %*% t(Xestrela))*as.numeric(s21)  # Matriz de escala da previsão
     Varestrela <- VYestrela * nu1/(nu1 - 2)                # Variância da previsão
   } else {
     Yestrela     <- NA
@@ -333,7 +465,9 @@ conjugada_natural <- function(Y, X, nu0, s20, B0, V0, varargin = NULL) {
 
 A função abaixo faz retiradas de cada beta a posteriori.
 
-```{r}
+Essa função seria para amostrar da posteriori, mas por enquanto não vai ser usada.
+
+```{r, eval = FALSE}
 drawbetas <- function(n, betabarra, sVbarra, nubarra) {
   
   beta       <- vector()
@@ -352,709 +486,744 @@ drawbetas <- function(n, betabarra, sVbarra, nubarra) {
 
 ```
 
-### Posteriori para a priori própria bastante informativa
+### Posteriori para a priori com valores iguais em média e baixo desvio padrão
 
-```{r, message = FALSE, warning = FALSE, echo=FALSE, results='asis'}
-post_in <- conjugada_natural(Y = dados$Y_real, X = dados$X, nu0 = nu0_in, s20 = s02_in, B0 = b0_in, V0 = V0_in, varargin = NULL)
-sim_in <- drawbetas(n = 1000, betabarra = post_in$B1, sVbarra = post_in$CovB, nubarra = post_in$nu1)
-colnames(sim_in) <- c("Beta1", "Beta2", "Beta3", "Beta4", "Beta5")
+```{r, warning = FALSE, message = FALSE}
+beta_in   <- matrix(0, ncol = length(b0_in), nrow = nsim)
+beta_MQO_in  <- matrix(0, ncol = length(b0_in), nrow = nsim)
+ic95_in   <- matrix(0, ncol = 2*length(b0_in), nrow = nsim)
+ic99_in   <- matrix(0, ncol = 2*length(b0_in), nrow = nsim)
+stdMQO_in <- matrix(0, ncol = length(b0_in), nrow = nsim)
 
-beta='\u03b2'
-
-#############################################################
-# Monta a tabela de médias a priori e posteriori dos betas  #
-#############################################################
-
-medias_betas     <- matrix(0, ncol = 3, nrow = 10)
-medias_betas[,1] <- c(paste0(beta,"_1"), paste0("sd[",beta,"_1","]"), 
-                paste0(beta,"_2"), paste0("sd[",beta,"_2","]"),
-                paste0(beta,"_3"), paste0("sd[",beta,"_3","]"),
-                paste0(beta,"_4"), paste0("sd[",beta,"_4","]"),
-                paste0(beta,"_5"), paste0("sd[",beta,"_5","]"))
-
-colnames(medias_betas) <- c("Parâmetro", "Priori Inf.", "Posteriori")
-
-for (i in 1:5){
-  medias_betas[(2*i)-1,2]   <- b0_in[i]
-  medias_betas[(2*i),2]     <- round(sqrt(varbeta_in[i]), 2)
-  medias_betas[(2*i)-1,3]   <- round(mean(sim_in[,i]),2)
-  medias_betas[(2*i),3]     <- round(sd(sim_in[,i]), 2)
+for (i in 1:nsim) {
+  post_in <- conjugada_natural(Y = dados$Y_real[[i]], X = dados$X, nu0 = nu0_in, s20 = s02_in, B0 = b0_in, V0 = V0_in, varargin = NULL)
+  #post_in <- conjugada_natural(Y = dados_em$Y_real[[i]], X = dados_em$X, nu0 = nu0_in, s20 = s02_in, B0 = b0_in, V0 = V0_in, varargin = NULL) # Erro de medida
+  beta_in[i,]      <- post_in$B1
+  beta_MQO_in[i,]  <- post_in$BMQO
+  ic95_in[i,]      <- as.vector(t(post_in$HPDI95))
+  ic99_in[i,]      <- as.vector(t(post_in$HPDI99))
+  stdMQO_in[i,]    <- post_in$stdMQO
 }
-
-medias_betas <- as.data.frame(medias_betas)
-
-########################################################
-# Monta a tabela com os intervalos de credibilidade    #
-########################################################
-
-HPDI <- matrix(0, ncol = 4, nrow = 5)
-
-HPDI[,1] <- c(paste0(beta,"_1"), 
-                paste0(beta,"_2"),
-                paste0(beta,"_3"),
-                paste0(beta,"_4"),
-                paste0(beta,"_5"))
-
-for (i in 1:5){
-  HPDI[i,2] <- paste0(round(post_in$probpos[i],4))
-  HPDI[i,3] <- paste0("[",round(post_in$HPDI95[i,1],4),", ",round(post_in$HPDI95[i,2],4),"]")
-  HPDI[i,4] <- paste0("[",round(post_in$HPDI99[i,1],4),", ",round(post_in$HPDI99[i,2],4),"]")
-}
-
-colnames(HPDI) <- c("Parâmetro", "p(beta_j>0|y)", "95% HPDI", "99% HPDI")
-
-HPDI <- as.data.frame(HPDI)
-
-stargazer(as.data.frame(sim_in), header = FALSE, type = 'html')
-stargazer(medias_betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
-stargazer(HPDI, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
-
-
-scaleFUN <- function(x) sprintf("%.4f", x)
-cores <- c("#65b39d", "#cc6215", "#9a96bf", "#d63386", "#dfba56")
-
-p1 <- ggplot(data = data.frame(sim_in), aes(sim_in[,1])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[1]) +
-  labs(title="B1", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p1 <- p1 + geom_vline(aes(xintercept=mean(sim_in[,1])),
-            color= cores[1], linetype="dashed", size=1)
-p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-
-p2 <- ggplot(data = data.frame(sim_in), aes(sim_in[,2])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[2]) +
-  labs(title="B2", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p2 <- p2 + geom_vline(aes(xintercept=mean(sim_in[,2])),
-            color= cores[2], linetype="dashed", size=1)
-p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p3 <- ggplot(data = data.frame(sim_in), aes(sim_in[,3])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[3]) +
-  labs(title="B3", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p3 <- p3 + geom_vline(aes(xintercept=mean(sim_in[,3])),
-            color= cores[3], linetype="dashed", size=1)
-p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p4 <- ggplot(data = data.frame(sim_in), aes(sim_in[,4])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[4]) +
-  labs(title="B4", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p4 <- p4 + geom_vline(aes(xintercept=mean(sim_in[,4])),
-            color= cores[4], linetype="dashed", size=1)
-p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p5 <- ggplot(data = data.frame(sim_in), aes(sim_in[,5])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[5]) +
-  labs(title="B5", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p5 <- p5 + geom_vline(aes(xintercept=mean(sim_in[,5])),
-            color= cores[5], linetype="dashed", size=1)
-p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-#grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
-```
-
-### Posteriori para a priori própria pouco informativa
-
-```{r, message = FALSE, warning = FALSE, echo=FALSE, results='asis'}
-post_ind <- conjugada_natural(Y = dados$Y_real, X = dados$X, nu0 = nu0_ind, s20 = s02_ind, B0 = b0_ind, V0 = V0_ind, varargin = NULL)
-sim_ind <- drawbetas(n = 1000, betabarra = post_ind$B1, sVbarra = post_ind$CovB, nubarra = post_ind$nu1)
-colnames(sim_ind) <- c("Beta1", "Beta2", "Beta3", "Beta4", "Beta5")
-
-beta='\u03b2'
-
-#############################################################
-# Monta a tabela de médias a priori e posteriori dos betas  #
-#############################################################
-
-medias_betas     <- matrix(0, ncol = 3, nrow = 10)
-medias_betas[,1] <- c(paste0(beta,"_1"), paste0("sd[",beta,"_1","]"), 
-                paste0(beta,"_2"), paste0("sd[",beta,"_2","]"),
-                paste0(beta,"_3"), paste0("sd[",beta,"_3","]"),
-                paste0(beta,"_4"), paste0("sd[",beta,"_4","]"),
-                paste0(beta,"_5"), paste0("sd[",beta,"_5","]"))
-
-colnames(medias_betas) <- c("Parâmetro", "Priori Inf.", "Posteriori")
-
-for (i in 1:5){
-  medias_betas[(2*i)-1,2]   <- b0_ind[i]
-  medias_betas[(2*i),2]     <- round(sqrt(varbeta_ind[i]), 2)
-  medias_betas[(2*i)-1,3]   <- round(mean(sim_ind[,i]),2)
-  medias_betas[(2*i),3]     <- round(sd(sim_ind[,i]), 2)
-}
-
-medias_betas <- as.data.frame(medias_betas)
-
-########################################################
-# Monta a tabela com os intervalos de credibilidade    #
-########################################################
-
-HPDI <- matrix(0, ncol = 4, nrow = 5)
-
-HPDI[,1] <- c(paste0(beta,"_1"), 
-                paste0(beta,"_2"),
-                paste0(beta,"_3"),
-                paste0(beta,"_4"),
-                paste0(beta,"_5"))
-
-for (i in 1:5){
-  HPDI[i,2] <- paste0(round(post_ind$probpos[i],4))
-  HPDI[i,3] <- paste0("[",round(post_ind$HPDI95[i,1],4),", ",round(post_ind$HPDI95[i,2],4),"]")
-  HPDI[i,4] <- paste0("[",round(post_ind$HPDI99[i,1],4),", ",round(post_ind$HPDI99[i,2],4),"]")
-}
-
-colnames(HPDI) <- c("Parâmetro", "p(beta_j>0|y)", "95% HPDI", "99% HPDI")
-
-HPDI <- as.data.frame(HPDI)
-
-stargazer(as.data.frame(sim_ind), header = FALSE, type = 'html')
-stargazer(medias_betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
-stargazer(HPDI, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
-
-
-
-scaleFUN <- function(x) sprintf("%.4f", x)
-cores <- c("#65b39d", "#cc6215", "#9a96bf", "#d63386", "#dfba56")
-
-p1 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,1])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[1]) +
-  labs(title="B1", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p1 <- p1 + geom_vline(aes(xintercept=mean(sim_ind[,1])),
-            color= cores[1], linetype="dashed", size=1)
-p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-
-p2 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,2])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[2]) +
-  labs(title="B2", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p2 <- p2 + geom_vline(aes(xintercept=mean(sim_ind[,2])),
-            color= cores[2], linetype="dashed", size=1)
-p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p3 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,3])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[3]) +
-  labs(title="B3", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p3 <- p3 + geom_vline(aes(xintercept=mean(sim_ind[,3])),
-            color= cores[3], linetype="dashed", size=1)
-p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p4 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,4])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[4]) +
-  labs(title="B4", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p4 <- p4 + geom_vline(aes(xintercept=mean(sim_ind[,4])),
-            color= cores[4], linetype="dashed", size=1)
-p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p5 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,5])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[5]) +
-  labs(title="B5", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p5 <- p5 + geom_vline(aes(xintercept=mean(sim_in[,5])),
-            color= cores[5], linetype="dashed", size=1)
-p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-#grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
-```
-
-### Posteriori para a priori própria com valores distantes e pouco desvio padrão
-
-```{r, message = FALSE, warning = FALSE, echo=FALSE, results='asis'}
-post_ni <- conjugada_natural(Y = dados$Y_real, X = dados$X, nu0 = nu0_ni, s20 = s02_ni, B0 = b0_ni, V0 = V0_ni, varargin = NULL)
-sim_ni <- drawbetas(n = 1000, betabarra = post_ni$B1, sVbarra = post_ni$CovB, nubarra = post_ni$nu1)
-colnames(sim_ni) <- c("Beta1", "Beta2", "Beta3", "Beta4", "Beta5")
-beta='\u03b2'
-
-#############################################################
-# Monta a tabela de médias a priori e posteriori dos betas  #
-#############################################################
-
-medias_betas     <- matrix(0, ncol = 3, nrow = 10)
-medias_betas[,1] <- c(paste0(beta,"_1"), paste0("sd[",beta,"_1","]"), 
-                paste0(beta,"_2"), paste0("sd[",beta,"_2","]"),
-                paste0(beta,"_3"), paste0("sd[",beta,"_3","]"),
-                paste0(beta,"_4"), paste0("sd[",beta,"_4","]"),
-                paste0(beta,"_5"), paste0("sd[",beta,"_5","]"))
-
-colnames(medias_betas) <- c("Parâmetro", "Priori Inf.", "Posteriori")
-
-for (i in 1:5){
-  medias_betas[(2*i)-1,2]   <- b0_ni[i]
-  medias_betas[(2*i),2]     <- round(sqrt(varbeta_ni[i]), 2)
-  medias_betas[(2*i)-1,3]   <- round(mean(sim_ni[,i]),2)
-  medias_betas[(2*i),3]     <- round(sd(sim_ni[,i]), 2)
-}
-
-medias_betas <- as.data.frame(medias_betas)
-
-########################################################
-# Monta a tabela com os intervalos de credibilidade    #
-########################################################
-
-HPDI <- matrix(0, ncol = 4, nrow = 5)
-
-HPDI[,1] <- c(paste0(beta,"_1"), 
-                paste0(beta,"_2"),
-                paste0(beta,"_3"),
-                paste0(beta,"_4"),
-                paste0(beta,"_5"))
-
-for (i in 1:5){
-  HPDI[i,2] <- paste0(round(post_ni$probpos[i],4))
-  HPDI[i,3] <- paste0("[",round(post_ni$HPDI95[i,1],4),", ",round(post_ni$HPDI95[i,2],4),"]")
-  HPDI[i,4] <- paste0("[",round(post_ni$HPDI99[i,1],4),", ",round(post_ni$HPDI99[i,2],4),"]")
-}
-
-colnames(HPDI) <- c("Parâmetro", "p(beta_j>0|y)", "95% HPDI", "99% HPDI")
-
-HPDI <- as.data.frame(HPDI)
-
-stargazer(as.data.frame(sim_ni), header = FALSE, type = 'html')
-stargazer(medias_betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
-stargazer(HPDI, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
-
-scaleFUN <- function(x) sprintf("%.4f", x)
-cores <- c("#65b39d", "#cc6215", "#9a96bf", "#d63386", "#dfba56")
-
-p1 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,1])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[1]) +
-  labs(title="B1", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p1 <- p1 + geom_vline(aes(xintercept=mean(sim_ni[,1])),
-            color= cores[1], linetype="dashed", size=1)
-p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-
-p2 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,2])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[2]) +
-  labs(title="B2", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p2 <- p2 + geom_vline(aes(xintercept=mean(sim_ni[,2])),
-            color= cores[2], linetype="dashed", size=1)
-p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p3 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,3])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[3]) +
-  labs(title="B3", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p3 <- p3 + geom_vline(aes(xintercept=mean(sim_ni[,3])),
-            color= cores[3], linetype="dashed", size=1)
-p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p4 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,4])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[4]) +
-  labs(title="B4", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p4 <- p4 + geom_vline(aes(xintercept=mean(sim_ni[,4])),
-            color= cores[4], linetype="dashed", size=1)
-p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p5 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,5])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[5]) +
-  labs(title="B5", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p5 <- p5 + geom_vline(aes(xintercept=mean(sim_ni[,5])),
-            color= cores[5], linetype="dashed", size=1)
-p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-#grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
-```
-
-### Posteriori para a priori própria com valores distantes e muito desvio padrão
-
-```{r, message = FALSE, warning = FALSE, echo=FALSE, results='asis'}
-post_nid <- conjugada_natural(Y = dados$Y_real, X = dados$X, nu0 = nu0_nid, s20 = s02_nid, B0 = b0_nid, V0 = V0_nid, varargin = NULL)
-sim_nid <- drawbetas(n = 1000, betabarra = post_nid$B1, sVbarra = post_nid$CovB, nubarra = post_nid$nu1)
-colnames(sim_nid) <- c("Beta1", "Beta2", "Beta3", "Beta4", "Beta5")
-beta='\u03b2'
-
-#############################################################
-# Monta a tabela de médias a priori e posteriori dos betas  #
-#############################################################
-
-medias_betas     <- matrix(0, ncol = 3, nrow = 10)
-medias_betas[,1] <- c(paste0(beta,"_1"), paste0("sd[",beta,"_1","]"), 
-                paste0(beta,"_2"), paste0("sd[",beta,"_2","]"),
-                paste0(beta,"_3"), paste0("sd[",beta,"_3","]"),
-                paste0(beta,"_4"), paste0("sd[",beta,"_4","]"),
-                paste0(beta,"_5"), paste0("sd[",beta,"_5","]"))
-
-colnames(medias_betas) <- c("Parâmetro", "Priori Inf.", "Posteriori")
-
-for (i in 1:5){
-  medias_betas[(2*i)-1,2]   <- b0_nid[i]
-  medias_betas[(2*i),2]     <- round(sqrt(varbeta_nid[i]), 2)
-  medias_betas[(2*i)-1,3]   <- round(mean(sim_nid[,i]),2)
-  medias_betas[(2*i),3]     <- round(sd(sim_nid[,i]), 2)
-}
-
-medias_betas <- as.data.frame(medias_betas)
-
-########################################################
-# Monta a tabela com os intervalos de credibilidade    #
-########################################################
-
-HPDI <- matrix(0, ncol = 4, nrow = 5)
-
-HPDI[,1] <- c(paste0(beta,"_1"), 
-                paste0(beta,"_2"),
-                paste0(beta,"_3"),
-                paste0(beta,"_4"),
-                paste0(beta,"_5"))
-
-for (i in 1:5){
-  HPDI[i,2] <- paste0(round(post_nid$probpos[i],4))
-  HPDI[i,3] <- paste0("[",round(post_nid$HPDI95[i,1],4),", ",round(post_nid$HPDI95[i,2],4),"]")
-  HPDI[i,4] <- paste0("[",round(post_nid$HPDI99[i,1],4),", ",round(post_nid$HPDI99[i,2],4),"]")
-}
-
-colnames(HPDI) <- c("Parâmetro", "p(beta_j>0|y)", "95% HPDI", "99% HPDI")
-
-HPDI <- as.data.frame(HPDI)
-
-stargazer(as.data.frame(sim_nid), header = FALSE, type = 'html')
-stargazer(medias_betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
-stargazer(HPDI, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
-
-scaleFUN <- function(x) sprintf("%.4f", x)
-cores <- c("#65b39d", "#cc6215", "#9a96bf", "#d63386", "#dfba56")
-
-p1 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,1])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[1]) +
-  labs(title="B1", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p1 <- p1 + geom_vline(aes(xintercept=mean(sim_nid[,1])),
-            color= cores[1], linetype="dashed", size=1)
-p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-
-p2 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,2])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[2]) +
-  labs(title="B2", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p2 <- p2 + geom_vline(aes(xintercept=mean(sim_nid[,2])),
-            color= cores[2], linetype="dashed", size=1)
-p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p3 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,3])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[3]) +
-  labs(title="B3", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p3 <- p3 + geom_vline(aes(xintercept=mean(sim_nid[,3])),
-            color= cores[3], linetype="dashed", size=1)
-p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p4 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,4])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[4]) +
-  labs(title="B4", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p4 <- p4 + geom_vline(aes(xintercept=mean(sim_nid[,4])),
-            color= cores[4], linetype="dashed", size=1)
-p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-p5 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,5])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[5]) +
-  labs(title="B5", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
-
-p5 <- p5 + geom_vline(aes(xintercept=mean(sim_nid[,5])),
-            color= cores[5], linetype="dashed", size=1)
-p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-#grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
 ```
 
 
-### Gráficos das posterioris
+### Posteriori para a priori com valores iguais em média e alto desvio padrão
+
+```{r, warning = FALSE, message = FALSE}
+beta_ind      <- matrix(0, ncol = length(b0_ind), nrow = nsim)
+beta_MQO_ind  <- matrix(0, ncol = length(b0_ind), nrow = nsim)
+ic95_ind      <- matrix(0, ncol = 2*length(b0_ind), nrow = nsim)
+ic99_ind      <- matrix(0, ncol = 2*length(b0_ind), nrow = nsim)
+stdMQO_ind    <- matrix(0, ncol = length(b0_ind), nrow = nsim)
+
+for (i in 1:nsim) {
+  post_ind <- conjugada_natural(Y = dados$Y_real[[i]], X = dados$X, nu0 = nu0_ind, s20 = s02_ind, B0 = b0_ind, V0 = V0_ind, varargin = NULL)
+  #post_ind <- conjugada_natural(Y = dados_em$Y_real[[i]], X = dados_em$X, nu0 = nu0_ind, s20 = s02_ind, B0 = b0_ind, V0 = V0_ind, varargin = NULL) # Erro de medida
+  beta_ind[i,]      <- post_ind$B1
+  beta_MQO_ind[i,]  <- post_ind$BMQO
+  ic95_ind[i,]      <- as.vector(t(post_ind$HPDI95))
+  ic99_ind[i,]      <- as.vector(t(post_ind$HPDI99))
+  stdMQO_ind[i,]    <- post_ind$stdMQO
+}
+```
+
+### Posteriori para a priori com valores distantes e pouco desvio padrão
+
+```{r, warning = FALSE, message = FALSE}
+beta_ni      <- matrix(0, ncol = length(b0_ni), nrow = nsim)
+beta_MQO_ni  <- matrix(0, ncol = length(b0_ni), nrow = nsim)
+ic95_ni      <- matrix(0, ncol = 2*length(b0_ni), nrow = nsim)
+ic99_ni      <- matrix(0, ncol = 2*length(b0_ni), nrow = nsim)
+stdMQO_ni    <- matrix(0, ncol = length(b0_ni), nrow = nsim)
+
+for (i in 1:nsim) {
+  post_ni <- conjugada_natural(Y = dados$Y_real[[i]], X = dados$X, nu0 = nu0_ni, s20 = s02_ni, B0 = b0_ni, V0 = V0_ni, varargin = NULL)
+  #post_ni <- conjugada_natural(Y = dados_em$Y_real[[i]], X = dados_em$X, nu0 = nu0_ni, s20 = s02_ni, B0 = b0_ni, V0 = V0_ni, varargin = NULL) #Erro de medida
+  beta_ni[i,]      <- post_ni$B1
+  beta_MQO_ni[i,]  <- post_ni$BMQO
+  ic95_ni[i,]      <- as.vector(t(post_ni$HPDI95))
+  ic99_ni[i,]      <- as.vector(t(post_ni$HPDI99))
+  stdMQO_ni[i,]    <- post_ni$stdMQO
+}
+```
+
+### Posteriori para a priori com valores distantes e muito desvio padrão
+
+```{r, warning = FALSE, message = FALSE}
+beta_nid      <- matrix(0, ncol = length(b0_nid), nrow = nsim)
+beta_MQO_nid  <- matrix(0, ncol = length(b0_nid), nrow = nsim)
+ic95_nid      <- matrix(0, ncol = 2*length(b0_nid), nrow = nsim)
+ic99_nid      <- matrix(0, ncol = 2*length(b0_nid), nrow = nsim)
+stdMQO_nid    <- matrix(0, ncol = length(b0_nid), nrow = nsim)
+
+for (i in 1:nsim) {
+  post_nid <- conjugada_natural(Y = dados$Y_real[[i]], X = dados$X, nu0 = nu0_nid, s20 = s02_nid, B0 = b0_nid, V0 = V0_nid, varargin = NULL)
+  #post_nid <- conjugada_natural(Y = dados_em$Y_real[[i]], X = dados_em$X, nu0 = nu0_nid, s20 = s02_nid, B0 = b0_nid, V0 = V0_nid, varargin = NULL) # Erro de medida
+  beta_nid[i,]      <- post_nid$B1
+  beta_MQO_nid[i,]  <- post_nid$BMQO
+  ic95_nid[i,]      <- as.vector(t(post_nid$HPDI95))
+  ic99_nid[i,]      <- as.vector(t(post_nid$HPDI99))
+  stdMQO_nid[i,]    <- post_nid$stdMQO
+}
+```
+
+### Junta os resultados em uma tabela
+
+Função que calcula o EQM
+
+```{r}
+EQM <- function (media_amostral, media_pop) {
+  n <- length(media_amostral)
+  EQM <- (1/n)*sum((media_amostral - media_pop)^2)
+  EQM
+}
+```
+
+#### p/ 5 resultados
+
+```{r, message = FALSE, warning = FALSE, echo=FALSE, results='asis'}
+colnames(beta_in) <- c("Beta1", "Beta2", "Beta3", "Beta4", "Beta5")
+#beta='\u03b2'
+
+betas <- matrix(0, ncol = 2*length(b0_in)+1, nrow = 7)
+
+betas[1,2:11] <- c(paste0("beta","_1"), paste0("EQM[","beta","_1","]"), 
+                paste0("beta","_2"), paste0("EQM[","beta","_2","]"),
+                paste0("beta","_3"), paste0("EQM[","beta","_3","]"),
+                paste0("beta","_4"), paste0("EQM[","beta","_4","]"),
+                paste0("beta","_5"), paste0("EQM[","beta","_5","]"))
+
+betas[2:7,1] <- c("Real", "MQO", "Priori 1", "Priori 2", "Priori 3", "Priori 4")
+
+betas[2,2:11] <- c(2, "", 100, "", 0.6, "", 5, "", 0.01, "")
+
+beta_real <- dados$Beta_real
+
+### COM EQM
+
+betas[3,2:11] <- c(round(mean(beta_MQO_in[,1]),5), round(EQM(beta_MQO_in[,1], beta_real[1]),5),
+                   round(mean(beta_MQO_in[,2]),5), round(EQM(beta_MQO_in[,2], beta_real[2]),5),
+                   round(mean(beta_MQO_in[,3]),5), round(EQM(beta_MQO_in[,3], beta_real[3]),5),
+                   round(mean(beta_MQO_in[,4]),5), round(EQM(beta_MQO_in[,4], beta_real[4]),5),
+                   round(mean(beta_MQO_in[,5]),5), round(EQM(beta_MQO_in[,5], beta_real[5]),5))
+
+betas[4,2:11] <- c(round(mean(beta_in[,1]),5), round(EQM(beta_in[,1], beta_real[1]),5),
+                   round(mean(beta_in[,2]),5), round(EQM(beta_in[,2], beta_real[2]),5),
+                   round(mean(beta_in[,3]),5), round(EQM(beta_in[,3], beta_real[3]),5),
+                   round(mean(beta_in[,4]),5), round(EQM(beta_in[,4], beta_real[4]),5),
+                   round(mean(beta_in[,5]),5), round(EQM(beta_in[,5], beta_real[5]),5))
+
+betas[5,2:11] <- c(round(mean(beta_ind[,1]),5), round(EQM(beta_ind[,1], beta_real[1]),5),
+                   round(mean(beta_ind[,2]),5), round(EQM(beta_ind[,2], beta_real[2]),5),
+                   round(mean(beta_ind[,3]),5), round(EQM(beta_ind[,3], beta_real[3]),5),
+                   round(mean(beta_ind[,4]),5), round(EQM(beta_ind[,4], beta_real[4]),5),
+                   round(mean(beta_ind[,5]),5), round(EQM(beta_ind[,5], beta_real[5]),5))
+
+betas[6,2:11] <- c(round(mean(beta_ni[,1]),5), round(EQM(beta_ni[,1], beta_real[1]),5),
+                   round(mean(beta_ni[,2]),5), round(EQM(beta_ni[,2], beta_real[2]),5),
+                   round(mean(beta_ni[,3]),5), round(EQM(beta_ni[,3], beta_real[3]),5),
+                   round(mean(beta_ni[,4]),5), round(EQM(beta_ni[,4], beta_real[4]),5),
+                   round(mean(beta_ni[,5]),5), round(EQM(beta_ni[,5], beta_real[5]),5))
+
+betas[7,2:11] <- c(round(mean(beta_nid[,1]),5), round(EQM(beta_nid[,1], beta_real[1]),5),
+                   round(mean(beta_nid[,2]),5), round(EQM(beta_nid[,2], beta_real[2]),5),
+                   round(mean(beta_nid[,3]),5), round(EQM(beta_nid[,3], beta_real[3]),5),
+                   round(mean(beta_nid[,4]),5), round(EQM(beta_nid[,4], beta_real[4]),5),
+                   round(mean(beta_nid[,5]),5), round(EQM(beta_nid[,5], beta_real[5]),5))
+
+## COM DESVIO PADRÃO
+
+# betas[3,2:11] <- c(round(mean(beta_MQO_in[,1]),5), round(sd(beta_MQO_in[,1]),5),
+#                    round(mean(beta_MQO_in[,2]),5), round(sd(beta_MQO_in[,2]),5),
+#                    round(mean(beta_MQO_in[,3]),5), round(sd(beta_MQO_in[,3]),5),
+#                    round(mean(beta_MQO_in[,4]),5), round(sd(beta_MQO_in[,4]),5),
+#                    round(mean(beta_MQO_in[,5]),5), round(sd(beta_MQO_in[,5]),5))
+# 
+# betas[4,2:11] <- c(round(mean(beta_in[,1]),5), round(sd(beta_in[,1]),5),
+#                    round(mean(beta_in[,2]),5), round(sd(beta_in[,2]),5),
+#                    round(mean(beta_in[,3]),5), round(sd(beta_in[,3]),5),
+#                    round(mean(beta_in[,4]),5), round(sd(beta_in[,4]),5),
+#                    round(mean(beta_in[,5]),5), round(sd(beta_in[,5]),5))
+# 
+# betas[5,2:11] <- c(round(mean(beta_ind[,1]),5), round(sd(beta_ind[,1]),5),
+#                    round(mean(beta_ind[,2]),5), round(sd(beta_ind[,2]),5),
+#                    round(mean(beta_ind[,3]),5), round(sd(beta_ind[,3]),5),
+#                    round(mean(beta_ind[,4]),5), round(sd(beta_ind[,4]),5),
+#                    round(mean(beta_ind[,5]),5), round(sd(beta_ind[,5]),5))
+# 
+# betas[6,2:11] <- c(round(mean(beta_ni[,1]),5), round(sd(beta_ni[,1]),5),
+#                    round(mean(beta_ni[,2]),5), round(sd(beta_ni[,2]),5),
+#                    round(mean(beta_ni[,3]),5), round(sd(beta_ni[,3]),5),
+#                    round(mean(beta_ni[,4]),5), round(sd(beta_ni[,4]),5),
+#                    round(mean(beta_ni[,5]),5), round(sd(beta_ni[,5]),5))
+# 
+# betas[7,2:11] <- c(round(mean(beta_nid[,1]),5), round(sd(beta_nid[,1]),5),
+#                    round(mean(beta_nid[,2]),5), round(sd(beta_nid[,2]),5),
+#                    round(mean(beta_nid[,3]),5), round(sd(beta_nid[,3]),5),
+#                    round(mean(beta_nid[,4]),5), round(sd(beta_nid[,4]),5),
+#                    round(mean(beta_nid[,5]),5), round(sd(beta_nid[,5]),5))
+
+betas <- as.data.frame(betas)
+#stargazer(betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
+stargazer(betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'latex')
+```
+
+#### p/ 4 resultados
+
+```{r, eval = FALSE, message = FALSE, warning = FALSE, echo=FALSE, results='asis'}
+colnames(beta_in) <- c("Beta1", "Beta2", "Beta3", "Beta4")
+#beta='\u03b2'
+
+betas <- matrix(0, ncol = 2*length(b0_in)+1, nrow = 7)
+
+betas[1,2:(2*length(b0_in)+1)] <- c(paste0("beta","_1"), paste0("EQM[","beta","_1","]"), 
+                paste0("beta","_2"), paste0("EQM[","beta","_2","]"),
+                paste0("beta","_3"), paste0("EQM[","beta","_3","]"),
+                paste0("beta","_4"), paste0("EQM[","beta","_4","]"))
+
+betas[2:7,1] <- c("Real", "MQO", "Priori 1", "Priori 2", "Priori 3", "Priori 4")
+
+betas[2,2:(2*length(b0_in)+1)] <- c(1, "", 10, "", 50, "", 100, "")
+
+beta_real <- dados$Beta_real
+
+# Com EQM
+
+betas[3,2:(2*length(b0_in)+1)] <- c(round(mean(beta_MQO_in[,1]),5), round(EQM(beta_MQO_in[,1], beta_real[1]),5),
+                   round(mean(beta_MQO_in[,2]),5), round(EQM(beta_MQO_in[,2], beta_real[2]),5),
+                   round(mean(beta_MQO_in[,3]),5), round(EQM(beta_MQO_in[,3], beta_real[3]),5),
+                   round(mean(beta_MQO_in[,4]),5), round(EQM(beta_MQO_in[,4], beta_real[4]),5))
+
+betas[4,2:(2*length(b0_in)+1)] <- c(round(mean(beta_in[,1]),5), round(sd(beta_in[,1]),5),
+                   round(mean(beta_in[,2]),5), round(EQM(beta_in[,2], beta_real[2]),5),
+                   round(mean(beta_in[,3]),5), round(EQM(beta_in[,3], beta_real[3]),5),
+                   round(mean(beta_in[,4]),5), round(EQM(beta_in[,4], beta_real[4]),5))
+
+betas[5,2:(2*length(b0_in)+1)] <- c(round(mean(beta_ind[,1]),5), round(EQM(beta_ind[,1], beta_real[1]),5),
+                   round(mean(beta_ind[,2]),5), round(EQM(beta_ind[,2], beta_real[2]),5),
+                   round(mean(beta_ind[,3]),5), round(EQM(beta_ind[,3], beta_real[3]),5),
+                   round(mean(beta_ind[,4]),5), round(EQM(beta_ind[,4], beta_real[4]),5))
+
+betas[6,2:(2*length(b0_in)+1)] <- c(round(mean(beta_ni[,1]),5), round(EQM(beta_ni[,1], beta_real[1]),5),
+                   round(mean(beta_ni[,2]),5), round(EQM(beta_ni[,2], beta_real[2]),5),
+                   round(mean(beta_ni[,3]),5), round(EQM(beta_ni[,3], beta_real[3]),5),
+                   round(mean(beta_ni[,4]),5), round(EQM(beta_ni[,4], beta_real[4]),5))
+
+betas[7,2:(2*length(b0_in)+1)] <- c(round(mean(beta_nid[,1]),5), round(EQM(beta_nid[,1], beta_real[1]),5),
+                   round(mean(beta_nid[,2]),5), round(EQM(beta_nid[,2], beta_real[2]),5),
+                   round(mean(beta_nid[,3]),5), round(EQM(beta_nid[,3], beta_real[3]),5),
+                   round(mean(beta_nid[,4]),5), round(EQM(beta_nid[,4], beta_real[4]),5))
+
+# Com desvio padrão
+
+# betas[3,2:(2*length(b0_in)+1)] <- c(round(mean(beta_MQO_in[,1]),5), round(sd(beta_MQO_in[,1]),5),
+#                    round(mean(beta_MQO_in[,2]),5), round(sd(beta_MQO_in[,2]),5),
+#                    round(mean(beta_MQO_in[,3]),5), round(sd(beta_MQO_in[,3]),5),
+#                    round(mean(beta_MQO_in[,4]),5), round(sd(beta_MQO_in[,4]),5))
+# 
+# betas[4,2:(2*length(b0_in)+1)] <- c(round(mean(beta_in[,1]),5), round(sd(beta_in[,1]),5),
+#                    round(mean(beta_in[,2]),5), round(sd(beta_in[,2]),5),
+#                    round(mean(beta_in[,3]),5), round(sd(beta_in[,3]),5),
+#                    round(mean(beta_in[,4]),5), round(sd(beta_in[,4]),5))
+# 
+# betas[5,2:(2*length(b0_in)+1)] <- c(round(mean(beta_ind[,1]),5), round(sd(beta_ind[,1]),5),
+#                    round(mean(beta_ind[,2]),5), round(sd(beta_ind[,2]),5),
+#                    round(mean(beta_ind[,3]),5), round(sd(beta_ind[,3]),5),
+#                    round(mean(beta_ind[,4]),5), round(sd(beta_ind[,4]),5))
+# 
+# betas[6,2:(2*length(b0_in)+1)] <- c(round(mean(beta_ni[,1]),5), round(sd(beta_ni[,1]),5),
+#                    round(mean(beta_ni[,2]),5), round(sd(beta_ni[,2]),5),
+#                    round(mean(beta_ni[,3]),5), round(sd(beta_ni[,3]),5),
+#                    round(mean(beta_ni[,4]),5), round(sd(beta_ni[,4]),5))
+# 
+# betas[7,2:(2*length(b0_in)+1)] <- c(round(mean(beta_nid[,1]),5), round(sd(beta_nid[,1]),5),
+#                    round(mean(beta_nid[,2]),5), round(sd(beta_nid[,2]),5),
+#                    round(mean(beta_nid[,3]),5), round(sd(beta_nid[,3]),5),
+#                    round(mean(beta_nid[,4]),5), round(sd(beta_nid[,4]),5))
+
+
+betas <- as.data.frame(betas)
+#stargazer(betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
+stargazer(betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'latex')
+```
+
+#### p/ 3 resultados
+
+```{r, eval = FALSE, message = FALSE, warning = FALSE, echo=FALSE, results='asis'}
+colnames(beta_in) <- c("Beta2", "Beta3", "Beta4")
+#beta='\u03b2'
+
+betas <- matrix(0, ncol = 2*length(b0_in)+1, nrow = 7)
+
+betas[1,2:(2*length(b0_in)+1)] <- c(paste0("beta","_1"), paste0("EQM[","beta","_1","]"), 
+                paste0("beta","_2"), paste0("EQM[","beta","_2","]"),
+                paste0("beta","_3"), paste0("EQM[","beta","_3","]"))
+
+betas[2:7,1] <- c("Real", "MQO", "Priori 1", "Priori 2", "Priori 3", "Priori 4")
+
+betas[2,2:(2*length(b0_in)+1)] <- c(10, "", 50, "", 100, "")
+
+beta_real <- dados$Beta_real
+
+# Com EQM
+
+betas[3,2:(2*length(b0_in)+1)] <- c(round(mean(beta_MQO_in[,1]),5), round(EQM(beta_MQO_in[,1], beta_real[1]),5),
+                   round(mean(beta_MQO_in[,2]),5), round(EQM(beta_MQO_in[,2], beta_real[2]),5),
+                   round(mean(beta_MQO_in[,3]),5), round(EQM(beta_MQO_in[,3], beta_real[3]),5))
+
+betas[4,2:(2*length(b0_in)+1)] <- c(round(mean(beta_in[,1]),5), round(EQM(beta_in[,1], beta_real[1]),5),
+                   round(mean(beta_in[,2]),5), round(EQM(beta_in[,2], beta_real[2]),5),
+                   round(mean(beta_in[,3]),5), round(EQM(beta_in[,3], beta_real[3]),5))
+
+betas[5,2:(2*length(b0_in)+1)] <- c(round(mean(beta_ind[,1]),5), round(EQM(beta_ind[,1], beta_real[1]),5),
+                   round(mean(beta_ind[,2]),5), round(EQM(beta_ind[,2], beta_real[2]),5),
+                   round(mean(beta_ind[,3]),5), round(EQM(beta_ind[,3], beta_real[3]),5))
+
+betas[6,2:(2*length(b0_in)+1)] <- c(round(mean(beta_ni[,1]),5), round(EQM(beta_ni[,1], beta_real[1]),5),
+                   round(mean(beta_ni[,2]),5), round(EQM(beta_ni[,2], beta_real[2]),5),
+                   round(mean(beta_ni[,3]),5), round(EQM(beta_ni[,3], beta_real[3]),5))
+
+betas[7,2:(2*length(b0_in)+1)] <- c(round(mean(beta_nid[,1]),5), round(EQM(beta_nid[,1], beta_real[1]),5),
+                   round(mean(beta_nid[,2]),5), round(EQM(beta_nid[,2], beta_real[2]),5),
+                   round(mean(beta_nid[,3]),5), round(EQM(beta_nid[,3], beta_real[3]),5))
+
+# Com desvio padrão
+
+# betas[3,2:(2*length(b0_in)+1)] <- c(round(mean(beta_MQO_in[,1]),5), round(sd(beta_MQO_in[,1]),5),
+#                    round(mean(beta_MQO_in[,2]),5), round(sd(beta_MQO_in[,2]),5),
+#                    round(mean(beta_MQO_in[,3]),5), round(sd(beta_MQO_in[,3]),5))
+# 
+# betas[4,2:(2*length(b0_in)+1)] <- c(round(mean(beta_in[,1]),5), round(sd(beta_in[,1]),5),
+#                    round(mean(beta_in[,2]),5), round(sd(beta_in[,2]),5),
+#                    round(mean(beta_in[,3]),5), round(sd(beta_in[,3]),5))
+# 
+# betas[5,2:(2*length(b0_in)+1)] <- c(round(mean(beta_ind[,1]),5), round(sd(beta_ind[,1]),5),
+#                    round(mean(beta_ind[,2]),5), round(sd(beta_ind[,2]),5),
+#                    round(mean(beta_ind[,3]),5), round(sd(beta_ind[,3]),5))
+# 
+# betas[6,2:(2*length(b0_in)+1)] <- c(round(mean(beta_ni[,1]),5), round(sd(beta_ni[,1]),5),
+#                    round(mean(beta_ni[,2]),5), round(sd(beta_ni[,2]),5),
+#                    round(mean(beta_ni[,3]),5), round(sd(beta_ni[,3]),5))
+# 
+# betas[7,2:(2*length(b0_in)+1)] <- c(round(mean(beta_nid[,1]),5), round(sd(beta_nid[,1]),5),
+#                    round(mean(beta_nid[,2]),5), round(sd(beta_nid[,2]),5),
+#                    round(mean(beta_nid[,3]),5), round(sd(beta_nid[,3]),5))
+
+betas <- as.data.frame(betas)
+#stargazer(betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
+stargazer(betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'latex')
+```
+
+### Gráficos
+
+# Histogramas
+
+Este código faz os histogramas sem a estimativa da função densidade e foi o que usei no trabalho final.
 
 ```{r, message = FALSE, warning = FALSE, echo=FALSE}
+scaleFUN1 <- function(x) sprintf("%.4f", x)
+scaleFUN2 <- function(x) sprintf("%.2f", x)
 scaleFUN <- function(x) sprintf("%.4f", x)
-cores <- c("#65b39d", "#cc6215", "#9a96bf", "#d63386", "#dfba56")
-print("Valores próximos dos reais, pouco desvio")
-p1 <- ggplot(data = data.frame(sim_in), aes(sim_in[,1])) +
-  geom_histogram(aes(y = ..density..),
+
+cores <- c("#65b39d", "#cc6215", "#9a96bf", "#d63386", "#dfba56", "#d14f5a")
+
+print("Estimativas de MQO")
+
+p1 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,1])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[1]) +
-  labs(title="B1", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_1$"), y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_MQO_in[,1]), max(beta_MQO_in[,1]), by = (max(beta_MQO_in[,1])-min(beta_MQO_in[,1]))/10),4)) +
+  geom_text(aes(quantile(beta_MQO_in[,1],0.03), 900, label=paste("Média\n",round(mean(beta_MQO_in[,1]),4))), colour="black", size=2.15)
 
-p1 <- p1 + geom_vline(aes(xintercept=mean(sim_in[,1])),
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_MQO_in[,1])),
             color= cores[1], linetype="dashed", size=1)
-p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p1 <- p1 + theme_bw()  +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_text(size = 7), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-
-p2 <- ggplot(data = data.frame(sim_in), aes(sim_in[,2])) +
-  geom_histogram(aes(y = ..density..),
+p2 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,2])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[2]) +
-  labs(title="B2", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_2$"), y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_MQO_in[,2]), max(beta_MQO_in[,2]), by = (max(beta_MQO_in[,2])-min(beta_MQO_in[,2]))/10),4)) +
+  geom_text(aes(quantile(beta_MQO_in[,2],0.03), 900, label=paste("Média\n",round(mean(beta_MQO_in[,2]),4))), colour="black", size=2.15)
 
-p2 <- p2 + geom_vline(aes(xintercept=mean(sim_in[,2])),
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_MQO_in[,2])),
             color= cores[2], linetype="dashed", size=1)
-p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p2 <- p2 + theme_bw() +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-p3 <- ggplot(data = data.frame(sim_in), aes(sim_in[,3])) +
-  geom_histogram(aes(y = ..density..),
+p3 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,3])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[3]) +
-  labs(title="B3", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_3$"), y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_MQO_in[,3]), max(beta_MQO_in[,3]), by = (max(beta_MQO_in[,3])-min(beta_MQO_in[,3]))/10),4)) +
+  geom_text(aes(quantile(beta_MQO_in[,3],0.03), 900, label=paste("Média\n",round(mean(beta_MQO_in[,3]),4))), colour="black", size=2.15)
 
-p3 <- p3 + geom_vline(aes(xintercept=mean(sim_in[,3])),
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_MQO_in[,3])),
             color= cores[3], linetype="dashed", size=1)
-p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p3 <- p3 + theme_bw() +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-p4 <- ggplot(data = data.frame(sim_in), aes(sim_in[,4])) +
-  geom_histogram(aes(y = ..density..),
+p4 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,4])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[4]) +
-  labs(title="B4", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_4$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_MQO_in[,4]), max(beta_MQO_in[,4]), by = (max(beta_MQO_in[,4])-min(beta_MQO_in[,4]))/10),4)) +
+  geom_text(aes(quantile(beta_MQO_in[,4],0.03), 900, label=paste("Média\n",round(mean(beta_MQO_in[,4]),4))), colour="black", size=2.15)
 
-p4 <- p4 + geom_vline(aes(xintercept=mean(sim_in[,4])),
+p4 <- p4 + geom_vline(aes(xintercept=mean(beta_MQO_in[,4])),
             color= cores[4], linetype="dashed", size=1)
-p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p4 <- p4 + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-p5 <- ggplot(data = data.frame(sim_in), aes(sim_in[,5])) +
-  geom_histogram(aes(y = ..density..),
+# p5 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,5])) +
+#   geom_histogram(aes(y = ..count..),
+#                  alpha = .2, colour = "black", fill = "white") + 
+#   ggtitle("") +
+#   labs(title=TeX("$\\hat{\\beta}_5$"),  y = "Observações", x= "Estimativas") +
+#   scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_MQO_in[,5]), max(beta_MQO_in[,5]), by = (max(beta_MQO_in[,5])-min(beta_MQO_in[,5]))/10),4)) +
+#   geom_text(aes(quantile(beta_MQO_in[,5],0.03), 900, label=paste("Média\n",round(mean(beta_MQO_in[,5]),4))), colour="black", size=2.15)
+# 
+# p5 <- p5 + geom_vline(aes(xintercept=mean(beta_MQO_in[,5])),
+#             color= cores[5], linetype="dashed", size=1)
+# p5 <- p5 + theme_bw() +  
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+
+#grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\mqoh.pdf", width = 10, height = 3)
+#grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)    # 5 parâmetros
+ grid.arrange(p1, p2, p3, p4, nrow = 1)              # 4 parâmetros
+# grid.arrange(p1, p2, p3, ncol=3)                    # 3 parâmetros
+dev.off()
+
+##############################################################################################
+##############################################################################################
+print("Valores próximos dos reais, pouco desvio")
+
+p1 <- ggplot(data = data.frame(beta_in), aes(beta_in[,1])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[5]) +
-  labs(title="B5", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_1$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_in[,1]), max(beta_in[,1]), by = (max(beta_in[,1])-min(beta_in[,1]))/10),4)) +
+  geom_text(aes(quantile(beta_in[,1],0.03), 900, label=paste("Média\n",round(mean(beta_in[,1]),4))), colour="black", size=2.15)
 
-p5 <- p5 + geom_vline(aes(xintercept=mean(sim_in[,5])),
-            color= cores[5], linetype="dashed", size=1)
-p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_in[,1])),
+            color= cores[1], linetype="dashed", size=1)
+p1 <- p1 + theme_bw()  +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_text(size = 7), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+
+p2 <- ggplot(data = data.frame(beta_in), aes(beta_in[,2])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  labs(title=TeX("$\\hat{\\beta}_2$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_in[,2]), max(beta_in[,2]), by = (max(beta_in[,2])-min(beta_in[,2]))/10),4)) +
+  geom_text(aes(quantile(beta_in[,2],0.03), 900, label=paste("Média\n",round(mean(beta_in[,2]),4))), colour="black", size=2.15)
+
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_in[,2])),
+            color= cores[2], linetype="dashed", size=1)
+p2 <- p2 + theme_bw() +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+
+p3 <- ggplot(data = data.frame(beta_in), aes(beta_in[,3])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  labs(title=TeX("$\\hat{\\beta}_3$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_in[,3]), max(beta_in[,3]), by = (max(beta_in[,3])-min(beta_in[,3]))/10),4)) +
+  geom_text(aes(quantile(beta_in[,3],0.03), 900, label=paste("Média\n",round(mean(beta_in[,3]),4))), colour="black", size=2.15)
+
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_in[,3])),
+            color= cores[3], linetype="dashed", size=1)
+p3 <- p3 + theme_bw() +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+
+p4 <- ggplot(data = data.frame(beta_in), aes(beta_in[,4])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  labs(title=TeX("$\\hat{\\beta}_4$"), y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_in[,4]), max(beta_in[,4]), by = (max(beta_in[,4])-min(beta_in[,4]))/10),4)) +
+  geom_text(aes(quantile(beta_in[,4],0.03), 900, label=paste("Média\n",round(mean(beta_in[,4]),4))), colour="black", size=2.15)
+
+p4 <- p4 + geom_vline(aes(xintercept=mean(beta_in[,4])),
+            color= cores[4], linetype="dashed", size=1)
+p4 <- p4 + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+
+# p5 <- ggplot(data = data.frame(beta_in), aes(beta_in[,5])) +
+#   geom_histogram(aes(y = ..count..),
+#                  alpha = .2, colour = "black", fill = "white") +
+#   ggtitle("") +
+#   labs(title=TeX("$\\hat{\\beta}_5$"),  y = "Observações", x= "Estimativas") +
+#   scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_in[,5]), max(beta_in[,5]), by = (max(beta_in[,5])-min(beta_in[,5]))/10),4)) +
+#   geom_text(aes(quantile(beta_in[,5],0.03), 900, label=paste("Média\n",round(mean(beta_in[,5]),4))), colour="black", size=2.15)
+# 
+# p5 <- p5 + geom_vline(aes(xintercept=mean(beta_in[,5])),
+#             color= cores[5], linetype="dashed", size=1)
+# p5 <- p5 + theme_bw() +  
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+# 
+# grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\p1h.pdf", width = 10, height = 3)
+# grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)
+ grid.arrange(p1, p2, p3, p4, nrow = 1)
+# grid.arrange(p1, p2, p3, ncol=3)
+dev.off()
 
 ########################################################################################################################
 ########################################################################################################################
 print("Valores próximos dos reais, muito desvio")
-p1 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,1])) +
-  geom_histogram(aes(y = ..density..),
+p1 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,1])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[1]) +
-  labs(title="B1", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_1$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ind[,1]), max(beta_ind[,1]), by = (max(beta_ind[,1])-min(beta_ind[,1]))/10),4)) +
+  geom_text(aes(quantile(beta_ind[,1],0.03), 900, label=paste("Média\n",round(mean(beta_ind[,1]),4))), colour="black", size=2.15)
 
-p1 <- p1 + geom_vline(aes(xintercept=mean(sim_ind[,1])),
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_ind[,1])),
             color= cores[1], linetype="dashed", size=1)
-p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p1 <- p1 + theme_bw()  +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_text(size = 7), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
 
-p2 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,2])) +
-  geom_histogram(aes(y = ..density..),
+p2 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,2])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[2]) +
-  labs(title="B2", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_2$"), y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ind[,2]), max(beta_ind[,2]), by = (max(beta_ind[,2])-min(beta_ind[,2]))/10),4)) +
+  geom_text(aes(quantile(beta_ind[,2],0.03), 900, label=paste("Média\n",round(mean(beta_ind[,2]),4))), colour="black", size=2.15)
 
-p2 <- p2 + geom_vline(aes(xintercept=mean(sim_ind[,2])),
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_ind[,2])),
             color= cores[2], linetype="dashed", size=1)
-p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p2 <- p2 + theme_bw() +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-p3 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,3])) +
-  geom_histogram(aes(y = ..density..),
+p3 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,3])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[3]) +
-  labs(title="B3", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_3$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ind[,3]), max(beta_ind[,3]), by = (max(beta_ind[,3])-min(beta_ind[,3]))/10),4)) +
+  geom_text(aes(quantile(beta_ind[,3],0.03), 900, label=paste("Média\n",round(mean(beta_ind[,3]),4))), colour="black", size=2.15)
 
-p3 <- p3 + geom_vline(aes(xintercept=mean(sim_ind[,3])),
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_ind[,3])),
             color= cores[3], linetype="dashed", size=1)
-p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p3 <- p3 + theme_bw() +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-p4 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,4])) +
-  geom_histogram(aes(y = ..density..),
+p4 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,4])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[4]) +
-  labs(title="B4", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_4$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ind[,4]), max(beta_ind[,4]), by = (max(beta_ind[,4])-min(beta_ind[,4]))/10),4)) +
+  geom_text(aes(quantile(beta_ind[,4],0.03), 900, label=paste("Média\n",round(mean(beta_ind[,4]),4))), colour="black", size=2.15)
 
-p4 <- p4 + geom_vline(aes(xintercept=mean(sim_ind[,4])),
+p4 <- p4 + geom_vline(aes(xintercept=mean(beta_ind[,4])),
             color= cores[4], linetype="dashed", size=1)
-p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p4 <- p4 + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-p5 <- ggplot(data = data.frame(sim_ind), aes(sim_ind[,5])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[5]) +
-  labs(title="B5", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+# p5 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,5])) +
+#   geom_histogram(aes(y = ..count..),
+#                  alpha = .2, colour = "black", fill = "white") +
+#   ggtitle("") +
+#   labs(title=TeX("$\\hat{\\beta}_5$"), y = "Observações", x= "Estimativas") +
+#   scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ind[,5]), max(beta_ind[,5]), by = (max(beta_ind[,5])-min(beta_ind[,5]))/10),4)) +
+#   geom_text(aes(quantile(beta_ind[,5],0.03), 900, label=paste("Média\n",round(mean(beta_ind[,5]),4))), colour="black", size=2.15)
+# 
+# p5 <- p5 + geom_vline(aes(xintercept=mean(beta_ind[,5])),
+#             color= cores[5], linetype="dashed", size=1)
+# p5 <- p5 + theme_bw() +  
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+# 
+# grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)
 
-p5 <- p5 + geom_vline(aes(xintercept=mean(sim_in[,5])),
-            color= cores[5], linetype="dashed", size=1)
-p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\p2h.pdf", width = 10, height = 3)
+# grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)
+grid.arrange(p1, p2, p3, p4, nrow = 1)
+# grid.arrange(p1, p2, p3, ncol=3)
+dev.off()
 
 ########################################################################################################################
 ########################################################################################################################
 print("Valores distantes dos reais, pouco desvio")
-p1 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,1])) +
-  geom_histogram(aes(y = ..density..),
+p1 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,1])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[1]) +
-  labs(title="B1", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_1$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ni[,1]), max(beta_ni[,1]), by = (max(beta_ni[,1])-min(beta_ni[,1]))/10),4)) +
+  geom_text(aes(quantile(beta_ni[,1],0.03), 900, label=paste("Média\n",round(mean(beta_ni[,1]),4))), colour="black", size=2.15)
 
-p1 <- p1 + geom_vline(aes(xintercept=mean(sim_ni[,1])),
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_ni[,1])),
             color= cores[1], linetype="dashed", size=1)
-p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p1 <- p1 + theme_bw()  +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_text(size = 7), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
 
-p2 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,2])) +
-  geom_histogram(aes(y = ..density..),
+p2 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,2])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[2]) +
-  labs(title="B2", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_2$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ni[,2]), max(beta_ni[,2]), by = (max(beta_ni[,2])-min(beta_ni[,2]))/10),4)) +
+  geom_text(aes(quantile(beta_ni[,2],0.03), 900, label=paste("Média\n",round(mean(beta_ni[,2]),4))), colour="black", size=2.15)
 
-p2 <- p2 + geom_vline(aes(xintercept=mean(sim_ni[,2])),
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_ni[,2])),
             color= cores[2], linetype="dashed", size=1)
-p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p2 <- p2 + theme_bw() + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-p3 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,3])) +
-  geom_histogram(aes(y = ..density..),
+p3 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,3])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[3]) +
-  labs(title="B3", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_3$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ni[,3]), max(beta_ni[,3]), by = (max(beta_ni[,3])-min(beta_ni[,3]))/10),4)) +
+  geom_text(aes(quantile(beta_ni[,3],0.03), 900, label=paste("Média\n",round(mean(beta_ni[,3]),4))), colour="black", size=2.15)
 
-p3 <- p3 + geom_vline(aes(xintercept=mean(sim_ni[,3])),
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_ni[,3])),
             color= cores[3], linetype="dashed", size=1)
-p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p3 <- p3 + theme_bw() +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-p4 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,4])) +
-  geom_histogram(aes(y = ..density..),
+p4 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,4])) +
+  geom_histogram(aes(y = ..count..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[4]) +
-  labs(title="B4", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+  labs(title=TeX("$\\hat{\\beta}_4$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ni[,4]), max(beta_ni[,4]), by = (max(beta_ni[,4])-min(beta_ni[,4]))/10),4)) +
+  geom_text(aes(quantile(beta_ni[,4],0.03), 900, label=paste("Média\n",round(mean(beta_ni[,4]),4))), colour="black", size=2.15)
 
-p4 <- p4 + geom_vline(aes(xintercept=mean(sim_ni[,4])),
+p4 <- p4 + geom_vline(aes(xintercept=mean(beta_ni[,4])),
             color= cores[4], linetype="dashed", size=1)
-p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p4 <- p4 + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
 
-p5 <- ggplot(data = data.frame(sim_ni), aes(sim_ni[,5])) +
-  geom_histogram(aes(y = ..density..),
-                 alpha = .2, colour = "black", fill = "white") +
-  ggtitle("") +
-  geom_density(alpha = .2, fill = cores[5]) +
-  labs(title="B5", y = "Densidade", x= "") +
-  scale_x_continuous(labels=scaleFUN)
+# p5 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,5])) +
+#   geom_histogram(aes(y = ..count..),
+#                  alpha = .2, colour = "black", fill = "white") +
+#   ggtitle("") +
+#   labs(title=TeX("$\\hat{\\beta}_5$"),  y = "Observações", x= "Estimativas") +
+#   scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_ni[,5]), max(beta_ni[,5]), by = (max(beta_ni[,5])-min(beta_ni[,5]))/10),4)) +
+#   geom_text(aes(quantile(beta_ni[,5],0.03), 900, label=paste("Média\n",round(mean(beta_ni[,5]),4))), colour="black", size=2.15)
+# 
+# p5 <- p5 + geom_vline(aes(xintercept=mean(beta_ni[,5])),
+#             color= cores[5], linetype="dashed", size=1)
+# p5 <- p5 + theme_bw() +  
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+# 
+# grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)
 
-p5 <- p5 + geom_vline(aes(xintercept=mean(sim_ni[,5])),
-            color= cores[5], linetype="dashed", size=1)
-p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-
-grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\p3h.pdf", width = 10, height = 3)
+# grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)
+grid.arrange(p1, p2, p3, p4, nrow = 1)
+# grid.arrange(p1, p2, p3, ncol=3)
+dev.off()
 
 ########################################################################################################################
 ########################################################################################################################
 print("Valores distantes dos reais, muito desvio")
-p1 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,1])) +
+p1 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,1])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  labs(title=TeX("$\\hat{\\beta}_1$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_nid[,1]), max(beta_nid[,1]), by = (max(beta_nid[,1])-min(beta_nid[,1]))/10),4))+
+  geom_text(aes(quantile(beta_nid[,1],0.03), 900, label=paste("Média\n",round(mean(beta_nid[,1]),4))), colour="black", size=2.15)
+
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_nid[,1])),
+            color= cores[1], linetype="dashed", size=1)
+p1 <- p1 + theme_bw()  +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_text(size = 7), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+
+
+p2 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,2])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  labs(title=TeX("$\\hat{\\beta}_2$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_nid[,2]), max(beta_nid[,2]), by = (max(beta_nid[,2])-min(beta_nid[,2]))/10),4)) +
+  geom_text(aes(quantile(beta_nid[,2],0.03), 900, label=paste("Média\n",round(mean(beta_nid[,2]),4))), colour="black", size=2.15)
+
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_nid[,2])),
+            color= cores[2], linetype="dashed", size=1)
+p2 <- p2 + theme_bw() +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+
+p3 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,3])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  labs(title=TeX("$\\hat{\\beta}_3$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_nid[,3]), max(beta_nid[,3]), by = (max(beta_nid[,3])-min(beta_nid[,3]))/10),4)) +
+  geom_text(aes(quantile(beta_nid[,3],0.03), 900, label=paste("Média\n",round(mean(beta_nid[,3]),4))), colour="black", size=2.15)
+
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_nid[,3])),
+            color= cores[3], linetype="dashed", size=1)
+p3 <- p3 + theme_bw() +  
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+
+p4 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,4])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  labs(title=TeX("$\\hat{\\beta}_4$"),  y = "Observações", x= "Estimativas") +
+  scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_nid[,4]), max(beta_nid[,4]), by = (max(beta_nid[,4])-min(beta_nid[,4]))/10),4)) +
+  geom_text(aes(quantile(beta_nid[,4],0.03), 900, label=paste("Média\n",round(mean(beta_nid[,4]),4))), colour="black", size=2.15)
+
+p4 <- p4 + geom_vline(aes(xintercept=mean(beta_nid[,4])),
+            color= cores[4], linetype="dashed", size=1)
+p4 <- p4 + theme_bw() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+
+# p5 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,5])) +
+#   geom_histogram(aes(y = ..count..),
+#                  alpha = .2, colour = "black", fill = "white") +
+#   ggtitle("") +
+#   labs(title=TeX("$\\hat{\\beta}_5$"),  y = "Observações", x= "Estimativas") +
+#   scale_x_continuous(labels=scaleFUN, breaks = round(seq(min(beta_nid[,5]), max(beta_nid[,5]), by = (max(beta_nid[,5])-min(beta_nid[,5]))/10),4)) +
+#   geom_text(aes(quantile(beta_nid[,5],0.03), 900, label=paste("Média\n",round(mean(beta_nid[,5]),4))), colour="black", size=2.15)
+# 
+# p5 <- p5 + geom_vline(aes(xintercept=mean(beta_nid[,5])),
+#             color= cores[5], linetype="dashed", size=1)
+# p5 <- p5 + theme_bw() +  
+#   theme(axis.text.x = element_text(angle = 90, hjust = 1, size = 6), plot.title = element_text(size=7), axis.text.y = element_text(size=7), axis.title.y = element_blank(), axis.title.x = element_text(size = 7), plot.margin=unit(c(0.05,0.05,0.05,0.05), units = "cm"))
+# 
+# grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\p4h.pdf", width = 10, height = 3)
+# grid.arrange(p1, p2, p3, p4, p5, ncol=5, nrow = 1)
+grid.arrange(p1, p2, p3, p4, nrow = 1)
+# grid.arrange(p1, p2, p3, ncol=3)
+dev.off()
+
+```
+
+# Densidades
+
+Como fica mais difícil de verificar a quantidade de valores, deixei de fora do trabalho estes gráficos que tem as densidades. Mas deixei de fora do trabalho final. Eu não sei se esses dois blocos são iguais, quando vim ver o código tinha 2 e eu não quis apagar nenhum sem dar uma conferida antes.
+
+```{r, eval = FALSE, message = FALSE, warning = FALSE, echo=FALSE}
+scaleFUN <- function(x) sprintf("%.4f", x)
+cores <- c("#65b39d", "#cc6215", "#9a96bf", "#d63386", "#dfba56", "#d14f5a")
+
+print("Estimativas de MQO")
+
+p1 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,1])) +
   geom_histogram(aes(y = ..density..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
@@ -1062,12 +1231,12 @@ p1 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,1])) +
   labs(title="B1", y = "Densidade", x= "") +
   scale_x_continuous(labels=scaleFUN)
 
-p1 <- p1 + geom_vline(aes(xintercept=mean(sim_nid[,1])),
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_MQO_in[,1])),
             color= cores[1], linetype="dashed", size=1)
 p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
 
-p2 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,2])) +
+p2 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,2])) +
   geom_histogram(aes(y = ..density..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
@@ -1075,11 +1244,11 @@ p2 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,2])) +
   labs(title="B2", y = "Densidade", x= "") +
   scale_x_continuous(labels=scaleFUN)
 
-p2 <- p2 + geom_vline(aes(xintercept=mean(sim_nid[,2])),
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_MQO_in[,2])),
             color= cores[2], linetype="dashed", size=1)
 p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-p3 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,3])) +
+p3 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,3])) +
   geom_histogram(aes(y = ..density..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
@@ -1087,11 +1256,11 @@ p3 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,3])) +
   labs(title="B3", y = "Densidade", x= "") +
   scale_x_continuous(labels=scaleFUN)
 
-p3 <- p3 + geom_vline(aes(xintercept=mean(sim_nid[,3])),
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_MQO_in[,3])),
             color= cores[3], linetype="dashed", size=1)
 p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-p4 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,4])) +
+p4 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,4])) +
   geom_histogram(aes(y = ..density..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
@@ -1099,27 +1268,312 @@ p4 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,4])) +
   labs(title="B4", y = "Densidade", x= "") +
   scale_x_continuous(labels=scaleFUN)
 
-p4 <- p4 + geom_vline(aes(xintercept=mean(sim_nid[,4])),
-            color= cores[4], linetype="dashed", size=1)
-p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ p4 <- p4 + geom_vline(aes(xintercept=mean(beta_MQO_in[,4])),
+             color= cores[4], linetype="dashed", size=1)
+ p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-p5 <- ggplot(data = data.frame(sim_nid), aes(sim_nid[,5])) +
+#p5 <- ggplot(data = data.frame(beta_MQO_in), aes(beta_MQO_in[,5])) +
+#  geom_histogram(aes(y = ..density..),
+#                 alpha = .2, colour = "black", fill = "white") +
+#  ggtitle("") +
+#  geom_density(alpha = .2, fill = cores[5]) +
+#  labs(title="B5", y = "Densidade", x= "") +
+#  scale_x_continuous(labels=scaleFUN)
+
+#p5 <- p5 + geom_vline(aes(xintercept=mean(beta_MQO_in[,5])),
+#            color= cores[5], linetype="dashed", size=1)
+#p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\mqo.pdf")
+#grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+ grid.arrange(p1, p2, p3, p4, ncol=2, nrow = 2)
+#grid.arrange(p1, p2, p3, ncol=3)
+dev.off()
+
+##############################################################################################
+##############################################################################################
+print("Valores próximos dos reais, pouco desvio")
+p1 <- ggplot(data = data.frame(beta_in), aes(beta_in[,1])) +
   geom_histogram(aes(y = ..density..),
                  alpha = .2, colour = "black", fill = "white") +
   ggtitle("") +
-  geom_density(alpha = .2, fill = cores[5]) +
-  labs(title="B5", y = "Densidade", x= "") +
+  geom_density(alpha = .2, fill = cores[1]) +
+  labs(title="B1", y = "Densidade", x= "") +
   scale_x_continuous(labels=scaleFUN)
 
-p5 <- p5 + geom_vline(aes(xintercept=mean(sim_nid[,5])),
-            color= cores[5], linetype="dashed", size=1)
-p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_in[,1])),
+            color= cores[1], linetype="dashed", size=1)
+p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+
+p2 <- ggplot(data = data.frame(beta_in), aes(beta_in[,2])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[2]) +
+  labs(title="B2", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_in[,2])),
+            color= cores[2], linetype="dashed", size=1)
+p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p3 <- ggplot(data = data.frame(beta_in), aes(beta_in[,3])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[3]) +
+  labs(title="B3", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_in[,3])),
+            color= cores[3], linetype="dashed", size=1)
+p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p4 <- ggplot(data = data.frame(beta_in), aes(beta_in[,4])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[4]) +
+  labs(title="B4", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p4 <- p4 + geom_vline(aes(xintercept=mean(beta_in[,4])),
+            color= cores[4], linetype="dashed", size=1)
+p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#p5 <- ggplot(data = data.frame(beta_in), aes(beta_in[,5])) +
+#  geom_histogram(aes(y = ..density..),
+#                 alpha = .2, colour = "black", fill = "white") +
+#  ggtitle("") +
+#  geom_density(alpha = .2, fill = cores[5]) +
+#  labs(title="B5", y = "Densidade", x= "") +
+#  scale_x_continuous(labels=scaleFUN)
+
+#p5 <- p5 + geom_vline(aes(xintercept=mean(beta_in[,5])),
+#            color= cores[5], linetype="dashed", size=1)
+#p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\p1.pdf")
+#grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+grid.arrange(p1, p2, p3, p4, ncol=2, nrow = 2)
+# grid.arrange(p1, p2, p3, ncol=3)
+dev.off()
+
+########################################################################################################################
+########################################################################################################################
+print("Valores próximos dos reais, muito desvio")
+p1 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,1])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[1]) +
+  labs(title="B1", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_ind[,1])),
+            color= cores[1], linetype="dashed", size=1)
+p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+p2 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,2])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[2]) +
+  labs(title="B2", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_ind[,2])),
+            color= cores[2], linetype="dashed", size=1)
+p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p3 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,3])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[3]) +
+  labs(title="B3", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_ind[,3])),
+            color= cores[3], linetype="dashed", size=1)
+p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p4 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,4])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[4]) +
+  labs(title="B4", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p4 <- p4 + geom_vline(aes(xintercept=mean(beta_ind[,4])),
+            color= cores[4], linetype="dashed", size=1)
+p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#p5 <- ggplot(data = data.frame(beta_ind), aes(beta_ind[,5])) +
+#  geom_histogram(aes(y = ..density..),
+#                 alpha = .2, colour = "black", fill = "white") +
+#  ggtitle("") +
+#  geom_density(alpha = .2, fill = cores[5]) +
+#  labs(title="B5", y = "Densidade", x= "") +
+#  scale_x_continuous(labels=scaleFUN)
+
+#p5 <- p5 + geom_vline(aes(xintercept=mean(beta_ind[,5])),
+#            color= cores[5], linetype="dashed", size=1)
+#p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\p2.pdf")
+#grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+grid.arrange(p1, p2, p3, p4, ncol=2, nrow = 2)
+# grid.arrange(p1, p2, p3, ncol=3)
+dev.off()
+
+########################################################################################################################
+########################################################################################################################
+print("Valores distantes dos reais, pouco desvio")
+p1 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,1])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[1]) +
+  labs(title="B1", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_ni[,1])),
+            color= cores[1], linetype="dashed", size=1)
+p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+p2 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,2])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[2]) +
+  labs(title="B2", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_ni[,2])),
+            color= cores[2], linetype="dashed", size=1)
+p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p3 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,3])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[3]) +
+  labs(title="B3", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_ni[,3])),
+            color= cores[3], linetype="dashed", size=1)
+p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p4 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,4])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[4]) +
+  labs(title="B4", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p4 <- p4 + geom_vline(aes(xintercept=mean(beta_ni[,4])),
+            color= cores[4], linetype="dashed", size=1)
+p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+#p5 <- ggplot(data = data.frame(beta_ni), aes(beta_ni[,5])) +
+#  geom_histogram(aes(y = ..density..),
+#                 alpha = .2, colour = "black", fill = "white") +
+#  ggtitle("") +
+#  geom_density(alpha = .2, fill = cores[5]) +
+#  labs(title="B5", y = "Densidade", x= "") +
+#  scale_x_continuous(labels=scaleFUN)
+
+#p5 <- p5 + geom_vline(aes(xintercept=mean(beta_ni[,5])),
+#            color= cores[5], linetype="dashed", size=1)
+#p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\p3.pdf")
+#grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+grid.arrange(p1, p2, p3, p4, ncol=2, nrow = 2)
+# grid.arrange(p1, p2, p3, ncol=3)
+dev.off()
+
+########################################################################################################################
+########################################################################################################################
+print("Valores distantes dos reais, muito desvio")
+p1 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,1])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[1]) +
+  labs(title="B1", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p1 <- p1 + geom_vline(aes(xintercept=mean(beta_nid[,1])),
+            color= cores[1], linetype="dashed", size=1)
+p1 <- p1 + theme_bw()  +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+p2 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,2])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[2]) +
+  labs(title="B2", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p2 <- p2 + geom_vline(aes(xintercept=mean(beta_nid[,2])),
+            color= cores[2], linetype="dashed", size=1)
+p2 <- p2 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p3 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,3])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[3]) +
+  labs(title="B3", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p3 <- p3 + geom_vline(aes(xintercept=mean(beta_nid[,3])),
+            color= cores[3], linetype="dashed", size=1)
+p3 <- p3 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+p4 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,4])) +
+  geom_histogram(aes(y = ..density..),
+                 alpha = .2, colour = "black", fill = "white") +
+  ggtitle("") +
+  geom_density(alpha = .2, fill = cores[4]) +
+  labs(title="B4", y = "Densidade", x= "") +
+  scale_x_continuous(labels=scaleFUN)
+
+p4 <- p4 + geom_vline(aes(xintercept=mean(beta_nid[,4])),
+            color= cores[4], linetype="dashed", size=1)
+p4 <- p4 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+# 
+# p5 <- ggplot(data = data.frame(beta_nid), aes(beta_nid[,5])) +
+#   geom_histogram(aes(y = ..density..),
+#                  alpha = .2, colour = "black", fill = "white") +
+#   ggtitle("") +
+#   geom_density(alpha = .2, fill = cores[5]) +
+#   labs(title="B5", y = "Densidade", x= "") +
+#   scale_x_continuous(labels=scaleFUN)
+
+#p5 <- p5 + geom_vline(aes(xintercept=mean(beta_nid[,5])),
+#            color= cores[5], linetype="dashed", size=1)
+#p5 <- p5 + theme_bw() +  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Simulação\\p4.pdf")
+#grid.arrange(p1, p2, p3, p4, p5, ncol=3, nrow = 2)
+grid.arrange(p1, p2, p3, p4, ncol=2, nrow = 2)
+#grid.arrange(p1, p2, p3, ncol=3)
+dev.off()
 
 ```
 
-```{r, eval = FALSE}
+
+```{r, eval = FALSE, echo = FALSE}
 scaleFUN <- function(x) sprintf("%.4f", x)
 cores <- c("#65b39d", "#cc6215", "#9a96bf", "#d63386", "#dfba56")
 print("Valores próximos dos reais, pouco desvio")

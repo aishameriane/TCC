@@ -1,0 +1,682 @@
+---
+title: "TCC - Aplicação"
+author: "A. Schmidt"
+date: "23 de outubro de 2017"
+header-includes:
+   - \usepackage{bigints}
+   - \usepackage[brazil]{babel}
+   - \usepackage{graphicx}
+   - \usepackage{amsmath}
+   - \usepackage{cancel}
+   - \usepackage{stackengine}
+   
+output: html_document
+---
+
+
+## Instala e carrega os pacotes usados
+
+```{r, warning = FALSE, message = FALSE}
+list.of.packages <- c("ggplot2", "metRology", "reshape2", "gridExtra","knitr", "stargazer", "foreign", "dplyr", "lmtest", "sandwich")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+library(ggplot2, quietly = T)
+library(metRology, quietly = T)
+library(reshape2, quietly = T)
+library(gridExtra, quietly = T)
+library(knitr, quietly = T)
+library(stargazer, quietly = T)
+library(foreign, quietly = T)
+library(dplyr, quietly = T)
+library(lmtest, quietly = T)
+library(sandwich, quietly = T)
+options(scipen=999)
+```
+
+# Leitura e descritivas dos dados
+
+## Arquivo dadosraistisc
+
+
+```{r}
+dadosraistisc <- read.dta("C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Dados Artigo Bonini\\dadosraistisc.dta")
+head(dadosraistisc)
+glimpse(dadosraistisc)
+tail(dadosraistisc)
+
+# Utiliza a notação decimal
+options(scipen=9999)
+
+N <- nrow(dadosraistisc)     # Determina o tamanho da amostra
+k <- 7                       # Número de regressores
+
+# Junta as variáveis com o intercepto
+dados <- cbind(dadosraistisc$lnsalh, rep(1,N), dadosraistisc[,c(17,18,21,6,14,11,10)])
+dados <- as.matrix(dados)
+dados <- dados[complete.cases(dados),]
+colnames(dados) <- c("lnsalh", "cons", "supinc", "sup", "pos", "idade", "idade2", "tempemp", "sexo")
+summary(dados)
+sd(dados[,1])
+
+## Sorteio dos valores para serem previstos
+#round(runif(6,min = 1,max = 4328),0)
+# 3997 1266 3624 1239 1156  809
+
+# Acabei escolhendo no olho para ter bastante perfis diferentes
+## Separa em dois bancos de dados
+dados[c(3997, 1266, 3624, 809, 3196, 1, 661, 2007, 670, 2405),]
+novos_dados <- dados[c(3997, 1266, 3624, 809, 3196, 1, 661, 2007, 670, 2405),]
+dados_antigos <- dados[-c(3997, 1266, 3624, 809, 3196, 1, 661, 2007, 670, 2405),]
+
+dados_antigos2 <- data.frame(dados_antigos)
+
+dados_antigos2$sexo[dados_antigos2$sexo == 1] <- 0
+dados_antigos2$sexo[dados_antigos2$sexo == 2] <- 1
+dados_antigos2$pos[dados_antigos2$pos == 2] <- 1
+
+novos_dados2 <- data.frame(novos_dados)
+
+novos_dados2$sexo[novos_dados2$sexo == 1] <- 0
+novos_dados2$sexo[novos_dados2$sexo == 2] <- 1
+novos_dados2$pos[novos_dados2$pos == 2] <- 1
+
+summary(dados_antigos2[,"idade"])
+sd(dados_antigos2[,"idade"])
+nrow(dados_antigos2)
+
+summary(dados_antigos2[,"idade2"])
+sd(dados_antigos2[,"idade2"])
+
+summary(dados_antigos2[,"tempemp"])
+sd(dados_antigos2[,"tempemp"])
+
+summary(dados_antigos2[,"lnsalh"])
+sd(dados_antigos2[,"lnsalh"])
+
+table(dados_antigos2[,"sexo"])
+round(table(dados_antigos2[,"sexo"])/nrow(dados_antigos2), 4)
+
+table(dados_antigos2[,"supinc"])
+round(table(dados_antigos2[,"supinc"])/nrow(dados_antigos2), 4)
+
+table(dados_antigos2[,"sup"])
+round(table(dados_antigos2[,"sup"])/nrow(dados_antigos2), 4)
+
+table(dados_antigos2[,"pos"])
+round(table(dados_antigos2[,"pos"])/nrow(dados_antigos2), 4)
+
+# Numeração das variáveis
+
+# 4 - escolaridadeaps2005
+# 5 - qtdhoracontr
+# 6 - idade
+# 10 - sexo
+# 11 - tempemp
+# 12 - salhr
+# 13 - lnsalh
+# 14 - idade2
+# 16 - mdio
+# 17 - supinc
+# 18 - sup  
+# 19 - mes
+# 20 - dout
+# 21 - pos
+```
+
+```{r}
+# Gráficos
+
+# Idade
+p <- ggplot(as.data.frame(dados_antigos), aes(idade, lnsalh)) +
+  geom_point(color = "#65b39d") +
+  geom_smooth(method=lm, se=FALSE, linetype="dashed", color="black") +
+  labs(title="", x = "Idade (anos)", y= "Logaritmo do Salário Hora") +
+  theme_bw()
+p
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.002.pdf", width = 6, height = 3)
+p
+dev.off()
+
+# Idade^2
+p <- ggplot(as.data.frame(dados_antigos), aes(idade2, lnsalh)) +
+  geom_point(color = "#9a96bf") +
+  geom_smooth(method=lm, se=FALSE, linetype="dashed", color="black") +
+  labs(title="", x = "Idade ao quadrado (anos ao quadrado)", y= "Logaritmo do Salário Hora") +
+  theme_bw()
+p
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.003.pdf", width = 6, height = 3)
+p
+dev.off()
+
+# Tempo de emprego
+p <- ggplot(as.data.frame(dados_antigos), aes(tempemp, lnsalh)) +
+  geom_point(color = "#9a96bf") +
+  geom_smooth(method=lm, se=FALSE, linetype="dashed", color="black") +
+  labs(title="", x = "Tempo de Emprego (meses)", y= "Logaritmo do Salário Hora") +
+  theme_bw()
+p
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.004.pdf", width = 6, height = 3)
+p
+dev.off()
+
+# Ensino médio
+p <- ggplot(as.data.frame(dadosraistisc), aes(factor(mdio),lnsalh, fill=factor(mdio))) + 
+  geom_boxplot(alpha = 0.5) +
+  ggtitle("") +
+  scale_fill_manual(values = c("#65b39d", "#9a96bf"), name = "", labels = c("Não", "Sim")) +
+  scale_x_discrete(breaks=c(0,1), labels = c("Não", "Sim")) +
+  labs(title="", y = "Logaritmo do Salário Hora", x= "Escolaridade máxima = Ensino Médio") +
+  theme_bw()
+p<-p + theme(legend.position="none")
+p
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.005.pdf", width = 6, height = 3)
+p
+dev.off()
+
+
+# Superior Incompleto
+p <- ggplot(as.data.frame(dados_antigos), aes(factor(supinc),lnsalh, fill=factor(supinc))) + 
+  geom_boxplot(alpha = 0.5) +
+  ggtitle("") +
+  scale_fill_manual(values = c("#65b39d", "#9a96bf"), name = "", labels = c("Não", "Sim")) +
+  scale_x_discrete(breaks=c(0,1), labels = c("Não", "Sim")) +
+  labs(title="", y = "Logaritmo do Salário Hora", x= "Escolaridade máxima = Ensino Superior Incompleto") +
+  theme_bw()
+p <- p + theme(legend.position="none")
+p 
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.006.pdf", width = 6, height = 3)
+p
+dev.off()
+
+# Superior
+p <- ggplot(as.data.frame(dados_antigos), aes(factor(sup),lnsalh, fill=factor(sup))) + 
+  geom_boxplot(alpha = 0.5) +
+  ggtitle("") +
+  scale_fill_manual(values = c("#65b39d", "#9a96bf"), name = "", labels = c("Não", "Sim")) +
+  scale_x_discrete(breaks=c(0,1), labels = c("Não", "Sim")) +
+  labs(title="", y = "Logaritmo do Salário Hora", x= "Escolaridade máxima = Ensino Superior Completo") +
+  theme_bw()
+p <-p + theme(legend.position="none")
+p
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.007.pdf", width = 6, height = 3)
+p
+dev.off()
+
+# Pós graduação
+p <- ggplot(as.data.frame(dados_antigos), aes(factor(pos),lnsalh, fill=factor(pos))) + 
+  geom_boxplot(alpha = 0.5) +
+  ggtitle("") +
+  scale_fill_manual(values = c("#65b39d", "#9a96bf"), name = "", labels = c("Não", "Sim")) +
+  scale_x_discrete(breaks=c(0,2), labels = c("Não", "Sim")) +
+  labs(title="", y = "Logaritmo do Salário Hora", x= "Escolaridade máxima = Pós Graduação") +
+  theme_bw()
+p <- p + theme(legend.position="none")
+p
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.008.pdf", width = 6, height = 3)
+p
+dev.off()
+
+# Gênero
+p <- ggplot(as.data.frame(dados_antigos), aes(factor(sexo),lnsalh, fill=factor(sexo))) + 
+  geom_boxplot(alpha = 0.5) +
+  ggtitle("") +
+  scale_fill_manual(values = c("#3146bc", "#d14f5a"), name = "", labels = c("Homem", "Mulher")) +
+  scale_x_discrete(breaks=c(1,2), labels = c("Homem", "Mulher")) +
+  labs(title="", y = "Logaritmo do Salário Hora", x= "Gênero") +
+  theme_bw()
+p <-p + theme(legend.position="none")
+p
+
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.009.pdf", width = 6, height = 3)
+p
+dev.off()
+
+
+```
+
+## Arquivo dadostisc
+
+```{r, eval = FALSE}
+
+dadostisc <- read.dta("C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Dados Artigo Bonini\\dadostisc.dta")
+head(dadostisc)
+glimpse(dadostisc)
+summary(dadostisc)
+
+summary(dadostisc[,"idade"])
+summary(dadostisc[,"vlremunmdianom"])
+summary(dadostisc[,"tempoemprego"])
+
+table(dadostisc[,"ocup"])
+table(dadostisc[,"cnaeclasse"])
+table(dadostisc[,"vnculoativo3112"])
+table(dadostisc[,"escolaridadeapos2005"])
+table(dadostisc[,"qtdhoracontr"])
+table(dadostisc[,"cnaesubclasse"])
+table(dadostisc[,"sexotrabalhador"])
+```
+
+## Arquivo dadostisc2
+
+```{r, eval = FALSE}
+
+dadostisc2 <- read.dta("C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Códigos - R\\Dados Artigo Bonini\\dadostisc2.dta")
+head(dadostisc2)
+glimpse(dadostisc2)
+summary(dadostisc2)
+
+summary(dadostisc2[,"idade"])
+summary(dadostisc2[,"vlremunmdianom"])
+summary(dadostisc2[,"tempoemprego"])
+
+table(dadostisc2[,"cboocupao2002"])
+table(dadostisc2[,"cnae20classe"])
+table(dadostisc2[,"cnae20subclasse"])
+table(dadostisc2[,"vnculoativo3112"])
+table(dadostisc2[,"escolaridadeaps2005"])
+table(dadostisc2[,"qtdhoracontr"])
+table(dadostisc2[,"municpio"])
+table(dadostisc2[,"sexotrabalhador"])
+```
+
+# Modelo teórico
+
+O modelo proposto é:
+
+$$\ln y_i = \beta_0 + \beta_1 \text{supinc} +  \beta_2 \text{sup} + \beta_3 \text{pos} + \beta_4 \text{idade} + \beta_5 \text{idade}^2 + \beta_6 \text{genero} + u_i$$
+Onde:
+
+* $\ln y_i$ é o logaritmo do salário hora do i-ésimo trabalhador;
+* $\beta_0$ é uma variável latente que representa a heterogeneidade não observada no modelo;
+* *supinc* é uma variável binária que indica se a escolaridade do indivíduo é igual a curso superior incompleto;
+* *sup* é uma variável binária que indica se a escolaridade do indivíduo é igual a curso superior;
+* *pos* é uma variável binária que indica se a escolaridade do indivíduo é igual a pós-graduação (mestrado, doutorado ou especialização);
+* *idade* é a idade, em meses, do indivíduo e *$\text{idade}^2$* é o seu valor ao quadrado;
+* *genero* é uma variável binária que é zero se homem e igual a $1$ se mulher.
+
+
+# Determinação da priori
+
+Para determinar a priori foram escolhidos como médias os valores estimados por Bonini e Pozzobon (2014) para o estado de Santa Catarina:
+
+* Intercepto: $\beta_0. = 2.07$
+* Coef. Superior Incompleto: $\beta_1. = 0.122687$
+* Coef. Superior Completo: $\beta_2. = 0.44866$
+* Coef. Pós-Graduação: $\beta_3. = 1.070809$
+* Coef. Idade: $\beta_4. = 0.128502$
+* Coef. Idade$^2$: $\beta_5. = -0.00143$
+* Coef. Gênero: $\beta_6. = -0.15366$
+
+Quanto ao erro padrão a priori dos erros, podemos primeiro olhar para a distribuição dos salários hora:
+
+```{r, message = FALSE, error = FALSE}
+
+p1 <- ggplot(data = data.frame(dados), aes(dados[,1])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "#65b39d") +
+  ggtitle("") +
+  labs(title="", y="No. obs.", x="Logaritmo do Salário Hora") +
+  scale_x_continuous(breaks = seq(1, 8, 0.5),
+                        limits = c(1,8)) +
+  scale_colour_brewer(palette="Dark2") +
+  theme_bw()
+
+p1
+
+# Altura e largura são em inches, default = 7
+#pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.001.pdf", width = 6, height = 3)
+#p1
+#dev.off()
+
+
+```
+
+Como a maior parte dos valores está concentrada entre 3 e 5.5, pode-se pensar que em $\sigma = 1$. Dado que os erros são normalmente distribuídos com média zero, o valor de $\sigma$ implicará que $95\%$ dos erros será menor que $1.96 \times 1 = $ `r 1.96*1`, em valor absoluto. Uma vez que $h = \frac{1}{\sigma^2}$, uma priori razoável para $h$ é de $\frac{1}{1} = 1$. Então, $s.^{-2} = 1$.
+
+Pode-se dar um peso grande para a priori através dos graus de liberdade. Quanto mais próximo $\nu.$ for de $N$, maior peso estará sendo dado para este palpite inicial. Para $N = 4328$, pode-se pensar em $\nu. = 44$. De acordo com Koop, isso significa que a priori a respeito de $h$ tem $\nu/N\%$ do peso dos dados, neste caso, `r round(100*44/4328,2)` %.
+
+Para a variância dos coeficientes, como não estão disponíveis no artigo original os intervalos de confiança das estimativas, pode-se pensar que em um valor elevado, quando comparado com a média a priori, como $100^5$.
+
+```{r}
+# Seta uma priori informativa
+# * Intercepto = 2.07$
+# * Coef. Superior Incompleto  = 0.122687$
+# * Coef. Superior Completo = 0.44866$
+# * Coef. Pós-Graduação  = 1.070809$
+# * Coef. Idade = 0.128502$
+# * Coef. Idade$^2$  = -0.00143$
+# * Coef. Tempo de emprego: 0.00271
+# * Coef. Gênero: $\beta_6. = -0.15366$
+
+b0   <- c(2.07, 0.122687, 0.44866, 1.070809, 0.128502, -0.00143, 0.00271, -0.15366) # Priori Informativa
+
+s02   <- 1  # Desvio padrão dos erros a priori
+nu0   <- 44       # Graus de liberdade a priori
+h0    <- 1/s02   # Priori para h
+stdh0 <- 2/(s02*nu0)
+
+# Para encontrar os elementos da matriz V, utilizamos a fórmula do texto
+cons    <- (nu0 * s02)/(nu0-2)
+varbeta <- c(100, 100, 100, 100, 100, 100, 100, 100)
+V0_in   <- diag(8)*(varbeta/cons) # Matriz de escala da priori
+```
+
+## Cálculos a posteriori
+
+```{r}
+conjugada_natural <- function(Y, X, nu0, s20, B0, V0, varargin = NULL) {
+  
+  # Cálculo das quantidades de MQO
+  N      <- nrow(X)    # Tamanho da amostra a partir da matriz X
+  k      <- ncol(X)    # Número de regressores
+  nu     <- N-k        # Graus de liberdade
+  XX     <- t(matrix(X, ncol = k)) %*% matrix(X, ncol=k)  
+  iXX    <- solve(XX)
+  BMQO   <- iXX %*% (t(X) %*% Y)                           # Beta de MQO
+  s2     <- (t(Y-X %*% BMQO) %*% (Y-X %*% BMQO))/nu       # Estimativa não viesada da var dos erros
+  CovMQO <- as.numeric(s2) * iXX                          # Matriz de covariância do beta de MQO
+  stdMQO <- sqrt(diag(CovMQO))                            # Desvio padrão das estimativas de MQO
+  
+  # Parâmetros da posteriori
+  
+  nu1 <- nu0 + N # Graus de liberdade
+  if (V0 == 0){
+    iV0 <- diag(k)*0
+  } else {
+    iV0 <- solve(V0) # Precisão a posteriori
+  }
+  
+  iV1   <- iV0 + XX    # Inverso da escala a posteriori
+  V1    <- solve(iV1)  # Escala a posteriori
+  B1    <- V1 %*% (iV0 %*% B0 + XX %*% BMQO)
+  nus21 <- nu0 * s20 + nu * s2
+  
+  if (det(iV0) > 0) {
+    nus21 <- nus21 + t(BMQO - B0) %*% solve(V0 + iXX) %*% (BMQO - B0) # SQR a posteriori
+  } else {
+    nus21 <- nus21
+  }
+  
+  s21 <- nus21/nu1 
+  
+  # Parâmetros da distribuição posterior marginal beta
+  
+  CovB <- V1 * as.numeric(nus21/(nu1-2))  # Variância da distribuição t
+  stdB <- sqrt(diag(CovB))    # Desvio padrão da posteriori marginal de beta
+  
+  # Calcula os intervalos de maior densidade a posteriori de 95% e 99%
+  
+  lim95   <- qt(0.975, nu1) # Valor da t para o quantil 97.5
+  lim99   <- qt(0.995, nu1) # Valor da t para o quantil 99.5
+  
+  HPDI95  <- round(cbind(B1 - lim95*stdB, B1 + lim95*stdB),4)
+  HPDI99  <- round(cbind(B1 - lim99*stdB, B1 + lim99*stdB),4)
+  
+  probpos=vector()
+
+  for (i in 1:k){
+    tnorm = -B1[i,1]/sqrt(s21*V1[i,i])
+    probpos[i] = 1 - pt(tnorm,nu1)
+  }
+  
+  # Parâmetros da distribuição posterior marginal de h
+  
+  h1    <- 1/s21            # Média da distribuição gama que determina h
+  h1var <- 2/(nus21)        # Variância da distribuição a posteriori marginal de h
+  
+  # Logaritmo da função de verossimilhança marginal
+  
+  lmlik <- vector()
+  if (det(iV0 > 0)) {
+    c <- lgamma(0.5*nu1) + 
+      0.5*nu0*log(nu0*s20)-lgamma(0.5*nu0)-0.5*N*log(pi) # constante de integração
+    lmlik <- c+0.5*log(det(V1)/det(V0)) -0.5*nu1*log(nus21)  # log da veross. marginal
+  } else {
+    lmlik <- 0
+  }
+  
+  # Faz previsão de X* é passado como argumento para a função
+  if (is.null(varargin) == FALSE) {
+    Xestrela   <- varargin
+    Yestrela   <- Xestrela %*% B1                          # Previsão Y*
+    VYestrela  <- (diag(nrow(Xestrela))+Xestrela %*% V1 %*% t(Xestrela))*as.numeric(s21)  # Matriz de escala da previsão
+    Varestrela <- VYestrela * nu1/(nu1 - 2)                # Variância da previsão
+    HPDI95prev  <- round(cbind(Yestrela - lim95*diag(Varestrela), Yestrela + lim95*diag(Varestrela)),4)
+    HPDI99prev  <- round(cbind(Yestrela - lim99*diag(Varestrela), Yestrela + lim99*diag(Varestrela)),4)
+  } else {
+    Yestrela    <- NA
+    VYestrela   <- NA
+    Varestrela  <- NA
+    HPDI95prev  <- NA
+    HPDI99prev  <- NA
+  }
+  
+  return(list(B1=B1, V1=V1, stdB=stdB, nu1=nu1, s21=s21, CovB=CovB, h1=h1, h1var=h1var, lmlik = lmlik, HPDI95 = HPDI95, HPDI99 = HPDI99, previsao = Yestrela, varprev = Varestrela, escalaprev = VYestrela, BMQO = BMQO, stdMQO = stdMQO, probpos = probpos, HPDI95prev = HPDI95prev, HPDI99prev= HPDI99prev))
+}
+```
+
+## Calculando
+
+```{r,message = FALSE, warning = FALSE, echo=FALSE, results='asis'}
+# Faz estimativa prevendo 6 valores aleatórios
+
+estimativa <- conjugada_natural(Y = as.matrix(dados_antigos2)[,1], X = as.matrix(dados_antigos2)[,2:9], nu0 = nu0, s20 = s02, B0 = b0, V0 = V0_in, varargin = as.matrix(novos_dados2)[,2:9])
+
+modelo_MQO <- lm(lnsalh ~  supinc + sup + pos + idade + idade2 + tempemp +sexo, data = dados_antigos2)
+previsao_MQO <- predict(modelo_MQO, novos_dados2, interval = "prediction")
+
+# Faz a estimativa usando a matriz de correção de White
+stargazer(vcovHC(modelo_MQO), summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
+stargazer(coeftest(modelo_MQO), summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
+
+stargazer(vcovHC(modelo_MQO), summary=FALSE, rownames = FALSE, header = FALSE, type = 'latex')
+stargazer(coeftest(modelo_MQO), summary=FALSE, rownames = FALSE, header = FALSE, type = 'latex')
+
+mySummary <- function(model, VCOV) {
+    print(coeftest(model, vcov. = VCOV))
+    print(waldtest(model, vcov = VCOV))
+}
+
+stargazer(mySummary(modelo_MQO, vcovHC), summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
+stargazer(mySummary(modelo_MQO, vcovHC), summary=FALSE, rownames = FALSE, header = FALSE, type = 'latex')
+
+# Monta a matriz com os valores dos parâmetros
+
+betas <- matrix(0, ncol = 8, nrow = 9)
+
+betas[1,1:8] <- c("Parâmetro", "Priori", "MQO", "stdMQO" , "Posteriori", "std", "IC95%", "P(Beta > 0)")
+
+betas[2:9,1] <- c("beta_0", "beta_1", "beta_2", "beta_3", "beta_4", "beta_5", "beta_6",  "beta_7")
+
+betas[2:9,2] <- c(round(b0[1],2), round(b0[2],2), round(b0[3],2), round(b0[4],2), round(b0[5],2), round(b0[6],5), round(b0[7],5), round(b0[8],2))
+
+#betas[2:9,3] <- c(round(diag(V0_in)[1],2), round(diag(V0_in)[2],2), round(diag(V0_in)[3],2), round(diag(V0_in)[4],2), round(diag(V0_in)[5],2), round(diag(V0_in)[6],2), round(diag(V0_in)[7],1), round(diag(V0_in)[8],1))
+
+betas[2:9,3] <- c(round(estimativa$BMQO[1],5), round(estimativa$BMQO[2],5), round(estimativa$BMQO[3],5), round(estimativa$BMQO[4],5), round(estimativa$BMQO[5],5), round(estimativa$BMQO[6],5), round(estimativa$BMQO[7],5), round(estimativa$BMQO[8],5))
+
+betas[2:9,4] <- c(round(estimativa$stdMQO[1],4), round(estimativa$stdMQO[2],4), round(estimativa$stdMQO[3],4), round(estimativa$stdMQO[4],4), round(estimativa$stdMQO[5],4), round(estimativa$stdMQO[6],4), round(estimativa$stdMQO[7],4), round(estimativa$stdMQO[8],4))
+
+betas[2:9,5] <- c(round(estimativa$B1[1],5), round(estimativa$B1[2],5), round(estimativa$B1[3],5), round(estimativa$B1[4],5), round(estimativa$B1[5],5), round(estimativa$B1[6],5), round(estimativa$B1[7],5), round(estimativa$B1[8],5))
+
+betas[2:9,6] <- c(round(estimativa$stdB[1],4), round(estimativa$stdB[2],4), round(estimativa$stdB[3],4), round(estimativa$stdB[4],4), round(estimativa$stdB[5],4), round(estimativa$stdB[6],4), round(estimativa$stdB[7],4), round(estimativa$stdB[8],4))
+
+
+betas[2:9,7] <- c(paste0("[",round(estimativa$HPDI95[1,1],5),";",round(estimativa$HPDI95[1,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95[2,1],5),";",round(estimativa$HPDI95[2,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95[3,1],5),";",round(estimativa$HPDI95[3,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95[4,1],5),";",round(estimativa$HPDI95[4,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95[5,1],5),";",round(estimativa$HPDI95[5,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95[6,1],5),";",round(estimativa$HPDI95[6,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95[7,1],5),";",round(estimativa$HPDI95[7,2],5),"]"), 
+                  paste0("[",round(estimativa$HPDI95[8,1],5),";",round(estimativa$HPDI95[8,2],5),"]"))
+
+betas[2:9,8] <- c(round(estimativa$probpos[1],5), round(estimativa$probpos[2],5), round(estimativa$probpos[3],5), round(estimativa$probpos[4],5), round(estimativa$probpos[5],5), round(estimativa$probpos[6],5), round(estimativa$probpos[7],5), round(estimativa$probpos[8],5))
+
+betas <- as.data.frame(betas)
+stargazer(betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
+stargazer(betas, summary=FALSE, rownames = FALSE, header = FALSE, type = 'latex')
+
+# Monta a matriz com as previsões
+previsoes <- matrix(0, ncol = 5, nrow = 11)
+
+previsoes[1,] <- c("Valor Real", "Est. Bayesiana", "Int. Cred. 95%", "MQO", "IC95%")
+previsoes[2:11,1] <- round(novos_dados[,1],5)
+previsoes[2:11,2] <- round(estimativa$previsao,5)
+previsoes[2:11,3] <- c(paste0("[",round(estimativa$HPDI95prev[1,1],5),";",round(estimativa$HPDI95prev[1,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95prev[2,1],5),";",round(estimativa$HPDI95prev[2,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95prev[3,1],5),";",round(estimativa$HPDI95prev[3,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95prev[4,1],5),";",round(estimativa$HPDI95prev[4,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95prev[5,1],5),";",round(estimativa$HPDI95prev[5,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95prev[6,1],5),";",round(estimativa$HPDI95prev[6,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95prev[7,1],5),";",round(estimativa$HPDI95prev[7,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95prev[8,1],5),";",round(estimativa$HPDI95prev[8,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95prev[9,1],5),";",round(estimativa$HPDI95prev[9,2],5),"]"),
+                  paste0("[",round(estimativa$HPDI95prev[10,1],5),";",round(estimativa$HPDI95prev[10,2],5),"]"))
+
+previsoes[2:11,4] <- round(previsao_MQO[,1],5)
+
+previsoes[2:11,5] <- c(paste0("[",round(previsao_MQO[1,2],5),";",round(previsao_MQO[1,3],5),"]"),
+                  paste0("[",round(previsao_MQO[2,2],5),";",round(previsao_MQO[2,3],5),"]"),
+                  paste0("[",round(previsao_MQO[3,2],5),";",round(previsao_MQO[3,3],5),"]"),
+                  paste0("[",round(previsao_MQO[4,2],5),";",round(previsao_MQO[4,3],5),"]"),
+                  paste0("[",round(previsao_MQO[5,2],5),";",round(previsao_MQO[5,3],5),"]"),
+                  paste0("[",round(previsao_MQO[6,2],5),";",round(previsao_MQO[6,3],5),"]"),
+                  paste0("[",round(previsao_MQO[7,2],5),";",round(previsao_MQO[7,3],5),"]"),
+                  paste0("[",round(previsao_MQO[8,2],5),";",round(previsao_MQO[8,3],5),"]"),
+                  paste0("[",round(previsao_MQO[9,2],5),";",round(previsao_MQO[9,3],5),"]"),
+                  paste0("[",round(previsao_MQO[10,2],5),";",round(previsao_MQO[10,3],5),"]"))
+
+previsoes <- as.data.frame(previsoes)
+stargazer(previsoes, summary=FALSE, rownames = FALSE, header = FALSE, type = 'html')
+stargazer(previsoes, summary=FALSE, rownames = FALSE, header = FALSE, type = 'latex')
+
+# Tentando fazer o gráfico bonitinho da idade
+
+dados_antigos3 <- data.frame(dados_antigos)
+dados_antigos3$sexo[dados_antigos3$sexo == 2] <- 0
+
+plot <- ggplot(data = dados_antigos3, aes(idade, lnsalh, color = factor(sexo))) +
+        geom_point() +
+        geom_smooth(color = "black", method = lm, formula = y ~ x +I(x^2)) +
+        labs(x = "Idade", y = "Logarítmo do salário hora") +
+        facet_wrap(~ factor(sexo)) +
+        theme(legend.title=element_text()) +
+        scale_color_discrete(name="Gênero", labels = c("Mulher", "Homem")) +
+        theme_bw()
+plot <- plot + theme(strip.background = element_blank(), strip.text.x = element_blank()) 
+
+# Altura e largura são em inches, default = 7
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.011.pdf", width = 6, height = 3)
+plot
+dev.off()
+
+
+# Calcula os coeficiente apenas para sexo
+b0_s   <- c(2.07, -0.15366) # Priori Informativa
+
+s02_s   <- 10  # Desvio padrão dos erros a priori
+nu0_s   <- 44       # Graus de liberdade a priori
+h0_s    <- 1/s02_s   # Priori para h
+stdh0_s <- 2/(s02_s*nu0_s)
+
+# Para encontrar os elementos da matriz V, utilizamos a fórmula do texto
+cons_s    <- (nu0_s * s02_s)/(nu0_s-2)
+varbeta_s <- c(100, 100)
+V0_in_s   <- diag(2)*(varbeta_s/cons_s) # Matriz de escala da priori
+
+estimativa_s <- conjugada_natural(Y = as.matrix(dados_antigos2)[,1], X = as.matrix(dados_antigos2)[,c(2,9)], nu0 = nu0_s, s20 = s02_s, B0 = b0_s, V0 = V0_in_s, varargin = NULL)
+
+modelo_MQO_s <- lm(lnsalh ~ sexo, data = dados_antigos2)
+
+```
+
+
+# Verificando o ajuste
+
+```{r}
+errosbayes <- dados_antigos[,1] - (estimativa$B1[1] + estimativa$B1[2] * dados_antigos[,3] + estimativa$B1[3] * dados_antigos[,4] + estimativa$B1[4] * dados_antigos[,5] + estimativa$B1[5] * dados_antigos[,6] + estimativa$B1[6] * dados_antigos[,7] + estimativa$B1[7] * dados_antigos[,8] + estimativa$B1[8] * dados_antigos[,9])
+
+errosMQO <- dados_antigos[,1] - (estimativa$BMQO[1] + estimativa$BMQO[2] * dados_antigos[,3] + estimativa$BMQO[3] * dados_antigos[,4] + estimativa$BMQO[4] * dados_antigos[,5] + estimativa$BMQO[5] * dados_antigos[,6] + estimativa$BMQO[6] * dados_antigos[,7] + estimativa$BMQO[7] * dados_antigos[,8] + + estimativa$BMQO[8] * dados_antigos[,9])
+
+#qqnorm(errosMQO)
+#qqnorm(errosbayes)
+
+#hist(errosbayes)
+#hist(errosMQO)
+
+ggQQ <- function(vetor) # argument: a linear model
+{
+    y <- quantile(vetor[!is.na(vetor)], c(0.25, 0.75))
+    x <- qnorm(c(0.25, 0.75))
+    slope <- diff(y)/diff(x)
+    int <- y[1L] - slope * x[1L]
+    d <- data.frame(resids = vetor)
+    p <- ggplot(d, aes(sample=resids)) +
+       stat_qq(alpha = 0.5) +
+       geom_abline(slope = slope, intercept = int, color="blue")+ 
+       ggtitle("") +
+       labs(title="", y = "Quantis Amostra", x= "Quantis Teóricos") +
+       theme_bw()
+    
+    return(p)
+}
+
+ggQQ(errosbayes)
+
+# Altura e largura são em inches, default = 7
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.014.pdf", width = 6, height = 3)
+ggQQ(errosbayes)
+dev.off()
+
+ggQQ(errosMQO)
+
+# Altura e largura são em inches, default = 7
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.015.pdf", width = 6, height = 3)
+ggQQ(errosMQO)
+dev.off()
+
+# Histogramas
+
+d <- data.frame(resids = errosbayes)
+p1 <- ggplot(data = d, aes(d[,1])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "#dfba56") +
+  ggtitle("") +
+  labs(title="", y = "No. obs.", x= "Resíduos da Regressão Bayesiana") +
+  scale_x_continuous(breaks = seq(-3, 3, 0.5),
+                        limits = c(-3,3)) +
+  scale_colour_brewer(palette="Dark2") +
+  theme_bw()
+
+p1
+
+# Altura e largura são em inches, default = 7
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.012.pdf", width = 6, height = 3)
+p1
+dev.off()
+
+d <- data.frame(resids = errosMQO)
+p1 <- ggplot(data = d, aes(d[,1])) +
+  geom_histogram(aes(y = ..count..),
+                 alpha = .2, colour = "black", fill = "#9a96bf") +
+  ggtitle("") +
+  labs(title="", y = "No. obs.", x= "Resíduos da Regressão Classica") +
+  scale_x_continuous(breaks = seq(-3, 3, 0.5),
+                        limits = c(-3,3)) +
+  scale_colour_brewer(palette="Dark2") +
+  theme_bw()
+
+p1
+
+# Altura e largura são em inches, default = 7
+pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-4.013.pdf", width = 6, height = 3)
+p1
+dev.off()
+
+```
+
+
