@@ -1,15 +1,28 @@
 ---
-title: "Exemplo 1 - Distribuição Beta"
+title: "Figuras cap 1 - Distribuição Beta"
 author: "Aishameriane Schmidt"
-date: "19 de agosto de 2017"
+date: "16 de novembro de 2017"
 output: html_document
 ---
 
+# Carregando os pacotes
+
+```{r, message = FALSE, warning = FALSE}
+list.of.packages <- c("ggplot2", "reshape2", "latex2exp")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+library(ggplot2, quietly = T)
+library(reshape2, quietly = T)
+library(latex2exp, quietly = T)
+``` 
+
+
 # Código antigo
 
+Essa versão não foi utilizada no texto final.
 Vamos utilizar a distribuição beta pois ela é conjugada da distribuição Bernoulli.
 
-```{r}
+```{r, message= FALSE, warning = FALSE}
 require(ggplot2)
 library(latex2exp)
 
@@ -93,10 +106,10 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 multiplot(p1, p2, p3, p4, cols=2)
 ```
 
-Salva a figura em PDF:
+Salva a figura em PDF (para ativar o chunk, apague o `eval = FALSE`). Lembre-se de editar os três pontos para editar o diretório para salvar a imagem no seu computador.
 
 ```{r, eval = FALSE}
-pdf(file="C:\\Users\\Aishameriane\\OneDrive\\Documentos\\Mestrado Economia\\Bayesiana - 2017-01\\Imagens notas de aula\\beta.pdf")
+pdf(file="...\\beta.pdf")
 multiplot(p1, p2, p3, p4, cols=2)
 dev.off()
 ```
@@ -104,14 +117,11 @@ dev.off()
 
 # Código novo
 
-```{r, warning = FALSE}
-# Verificando dependências dos pacotes
-list.of.packages <- c("ggplot2")
-new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-if(length(new.packages)) install.packages(new.packages)
+Este código gera as figuras que foram utilizadas no texto final.
 
-library(ggplot2)
+O primeiro chunk gera 4 distribuições betas com parâmetros diferentes.
 
+```{r, warning = FALSE, message = FALSE}
 p <- ggplot(data.frame(x = c(0,1)), aes(x=x)) + 
      stat_function(fun = dbeta, args = list(.5, .5), 
                    aes(colour = "Alpha = .5, Beta = .5"), size = 1) +
@@ -135,23 +145,19 @@ p <- p + theme_bw()
 p
 ```
 
-Salva a figura em PDF:
+Salva a figura em PDF (para ativar o chunk, apague o `eval = FALSE`). Lembre-se de editar os três pontos para editar o diretório para salvar a imagem no seu computador.
 
 ```{r, eval = FALSE}
 # Altura e largura são em inches, default = 7
-pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-1.001.pdf", width = 6, height = 3)
+
+pdf(file="...\\Fig-1.001.pdf", width = 6, height = 3)
 p
 dev.off()
 ```
-# Triplot
 
-```{r}
-library(LearnBayes)
-library(pscl)
-library(ggplot2)
-library(reshape2)
-library(latex2exp)
+## Triplot
 
+```{r, message = FALSE, warning = FALSE}
 # Cria um vetor de thetas
 theta  <- seq(0, 1, length = 100)
 
@@ -159,7 +165,6 @@ theta  <- seq(0, 1, length = 100)
 alphapriori <- 10
 betapriori <- 10
 priori <- dbeta(theta, alphapriori, betapriori)
-#qplot(theta, priori, geom = "line")
 
 # Número de caras observadas
 somay <- 75
@@ -167,13 +172,11 @@ somay <- 75
 n <- 100
 # Verossimilhança - o termo (n+1) é multiplicado para dar escala
 vero <- (n+1)*(factorial(n)/(factorial(somay)*factorial(n-somay)))*theta^somay*(1-theta)^(n-somay)
-#qplot(theta, vero, geom="line")
 
 # Posteriori
 alphapost <- alphapriori + somay
 betapost <- betapriori + n - somay
 post <- dbeta(theta, alphapost, betapost)
-#qplot(theta, post, geom="line")
 
 # Juntando os dados
 df <- as.data.frame(cbind(theta, priori, vero, post))
@@ -191,12 +194,16 @@ p <- ggplot(df, aes(theta,value, color = factor(variable))) +
     scale_colour_brewer(palette="Dark2") +
     labs(colour = "Função") +
   theme_bw()
-#p <- p + theme(legend.position="top")
+
 p
+```
 
+Salva a figura em PDF. Para ativar o chunk, apague o `eval = FALSE`. Lembre-se de editar os três pontos para editar o diretório para salvar a imagem no seu computador.
+
+```{r, warning = FALSE, message = FALSE, eval = FALSE}
 # Altura e largura são em inches, default = 7
-#pdf(file="C:\\Users\\Aishameriane\\Dropbox\\TCC Aisha\\Texto TCC\\TCC\\Figuras\\Fig-1.003.pdf", width = 6, height = 3)
-#p
-#dev.off()
-
+pdf(file="...\\Fig-1.003.pdf", width = 6, height = 3)
+p
+dev.off()
+```
 ```
